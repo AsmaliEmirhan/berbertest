@@ -2,11 +2,7 @@
 --  Berber Randevu Sistemi - Veritabanı Kurulum Scripti
 -- ============================================================
 
-CREATE DATABASE IF NOT EXISTS berber_db
-    CHARACTER SET utf8mb4
-    COLLATE utf8mb4_unicode_ci;
 
-USE berber_db;
 
 -- ------------------------------------------------------------
 -- 1. DISTRICTS
