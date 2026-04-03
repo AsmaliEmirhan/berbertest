@@ -67,6 +67,7 @@ $stmt = $pdo->prepare("
         u.email           AS customer_email,
         sh.shop_name,
         sh.address        AS shop_address,
+        o.email           AS shop_owner_email,
         d.name            AS district_name,
         sv.service_name,
         sv.duration_minutes,
@@ -74,6 +75,7 @@ $stmt = $pdo->prepare("
     FROM appointments a
     JOIN users     u  ON a.customer_id  = u.id
     JOIN shops     sh ON a.shop_id      = sh.id
+    JOIN users     o  ON sh.owner_id    = o.id
     JOIN services  sv ON a.service_id   = sv.id
     JOIN users     e  ON a.employee_id  = e.id
     LEFT JOIN districts d ON sh.district_id = d.id
@@ -133,7 +135,10 @@ function sendReminderMail(array $appt): bool {
         $mail->Encoding    = 'base64';
 
         // Gönderici & Alıcı
-        $mail->setFrom(MAIL_FROM, MAIL_FROM_NAME);
+        $mail->setFrom(MAIL_FROM, $appt['shop_name']);
+        if (!empty($appt['shop_owner_email'])) {
+            $mail->addReplyTo($appt['shop_owner_email'], $appt['shop_name']);
+        }
         $mail->addAddress($appt['customer_email'], $appt['customer_name']);
 
         // Konu & İçerik
