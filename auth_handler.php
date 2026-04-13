@@ -32,7 +32,7 @@ function handleRegister(): void {
     $role      = in_array($_POST['role'] ?? '', ['musteri','berber'], true) ? $_POST['role'] : null;
     $firstName = trim($_POST['first_name'] ?? '');
     $lastName  = trim($_POST['last_name']  ?? '');
-    $email     = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
+    $email     = filter_var(strtolower(trim($_POST['email'] ?? '')), FILTER_VALIDATE_EMAIL);
     $password  = $_POST['password'] ?? '';
     $districtId = !empty($_POST['district_id']) ? (int)$_POST['district_id'] : null;
 
@@ -75,7 +75,7 @@ function handleLogin(): void {
     $pdo  = getPDO();
 
     $role     = in_array($_POST['role'] ?? '', ['musteri','berber'], true) ? $_POST['role'] : null;
-    $email    = filter_var(trim($_POST['email'] ?? ''), FILTER_VALIDATE_EMAIL);
+    $email    = filter_var(strtolower(trim($_POST['email'] ?? '')), FILTER_VALIDATE_EMAIL);
     $password = $_POST['password'] ?? '';
 
     if (!$role)    respond(false, 'Geçersiz kullanıcı tipi.');

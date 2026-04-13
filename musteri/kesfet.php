@@ -1,9 +1,4 @@
 <?php
-// ============================================================
-//  Keşfet — Berber Dükkanlarını Listele & Filtrele
-//  $pdo, $user berber_paneli.php'den gelir
-// ============================================================
-
 $districts = $pdo->query('SELECT id, name FROM districts ORDER BY name')->fetchAll();
 
 $filterDistrict = !empty($_GET['district']) ? (int)$_GET['district'] : (int)($user['district_id'] ?? 0);
@@ -11,13 +6,15 @@ $search         = trim($_GET['q'] ?? '');
 
 $sql    = "
     SELECT s.*,
-           d.name                                   AS district_name,
-           u.full_name                              AS owner_name,
-           (SELECT COUNT(*) FROM services sv WHERE sv.shop_id = s.id)        AS service_count,
-           (SELECT COUNT(*) FROM shop_employees se WHERE se.shop_id = s.id)  AS employee_count
+           d.name                              AS district_name,
+           u.full_name                         AS owner_name,
+           COUNT(DISTINCT sv.id)               AS service_count,
+           COUNT(DISTINCT se.employee_id)      AS employee_count
     FROM shops s
     JOIN users u ON s.owner_id = u.id
     LEFT JOIN districts d ON s.district_id = d.id
+    LEFT JOIN services sv ON sv.shop_id = s.id
+    LEFT JOIN shop_employees se ON se.shop_id = s.id
     WHERE 1=1
 ";
 $params = [];
@@ -33,90 +30,126 @@ if ($search) {
     $params[] = $like;
 }
 
-$sql .= ' ORDER BY s.created_at DESC';
+$sql .= ' GROUP BY s.id, d.name, u.full_name ORDER BY s.created_at DESC';
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $shops = $stmt->fetchAll();
 ?>
 
-<!-- Arama & Filtre -->
-<div class="kesfet-header">
-    <div>
-        <h2 class="page-title">Berber Keşfet</h2>
-        <p class="page-sub">
-            <?= $filterDistrict
-                ? htmlspecialchars($districts[array_search($filterDistrict, array_column($districts, 'id'))]['name'] ?? '') . ' ilçesindeki berberler'
-                : 'Tüm berberler' ?>
-            — <?= count($shops) ?> dükkan bulundu
-        </p>
-    </div>
-</div>
-
-<form method="GET" action="musteri_paneli.php" class="filter-bar">
-    <input type="hidden" name="page" value="kesfet">
-    <div class="filter-search">
-        <span class="search-icon">🔍</span>
-        <input type="text" name="q" placeholder="Dükkan veya berber adı…" value="<?= htmlspecialchars($search) ?>">
-    </div>
-    <select name="district" class="filter-select">
-        <option value="">Tüm İlçeler</option>
-        <?php foreach ($districts as $d): ?>
-        <option value="<?= $d['id'] ?>" <?= $filterDistrict == $d['id'] ? 'selected' : '' ?>>
-            <?= htmlspecialchars($d['name']) ?>
-        </option>
-        <?php endforeach; ?>
-    </select>
-    <button type="submit" class="btn btn-primary btn-sm">Filtrele</button>
-    <?php if ($filterDistrict || $search): ?>
-    <a href="musteri_paneli.php?page=kesfet" class="btn btn-ghost btn-sm">Temizle</a>
-    <?php endif; ?>
-</form>
-
-<!-- Dükkan Kartları -->
-<?php if (empty($shops)): ?>
-<div class="empty-state" style="margin-top:40px">
-    <div class="empty-icon">🏪</div>
-    <h2>Bu kriterlere uygun dükkan bulunamadı</h2>
-    <p>Farklı bir ilçe veya arama terimi deneyin.</p>
-    <a href="musteri_paneli.php?page=kesfet" class="btn btn-primary">Tüm Dükkanlar</a>
-</div>
-<?php else: ?>
-
-<div class="shop-grid">
-    <?php foreach ($shops as $s): ?>
-    <div class="shop-card">
-        <div class="shop-card-header">
-            <div class="shop-card-avatar"><?= mb_strtoupper(mb_substr($s['shop_name'], 0, 1)) ?></div>
-            <div class="shop-card-info">
-                <div class="shop-card-name"><?= htmlspecialchars($s['shop_name']) ?></div>
-                <div class="shop-card-owner">👤 <?= htmlspecialchars($s['owner_name']) ?></div>
+<div class="max-w-screen-xl mx-auto px-6 py-8 relative">
+    <!-- Filter Header Section -->
+    <section class="mb-12">
+        <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div>
+                <h1 class="font-headline font-extrabold text-5xl md:text-7xl text-black leading-tight mb-4 italic">
+                    Ustanı <span class="underline decoration-secondary decoration-4">Keşfet</span>
+                </h1>
+                <p class="font-body text-xl text-on-surface-variant max-w-xl">
+                    Şehrin en iyi berberleri, senin için tek bir defterde toplandı. Hemen randevunu al.
+                </p>
             </div>
-            <?php if ($s['district_name']): ?>
-            <span class="district-tag">📍 <?= htmlspecialchars($s['district_name']) ?></span>
+        </div>
+        
+        <form method="GET" action="musteri_paneli.php" class="mt-8 flex flex-wrap gap-4 items-center">
+            <input type="hidden" name="page" value="kesfet">
+            
+            <div class="relative flex-grow max-w-md">
+                <input class="w-full bg-surface-container-lowest border-2 border-black rounded-xl px-4 py-3 focus:outline-none focus:border-secondary font-headline font-bold uppercase transition-colors" placeholder="Dükkan veya berber ara..." type="text" name="q" value="<?= htmlspecialchars($search) ?>"/>
+                <span class="material-symbols-outlined absolute right-4 top-3 text-black">search</span>
+            </div>
+            
+            <select name="district" class="bg-surface-container-lowest border-2 border-black rounded-xl px-4 py-3 font-headline font-bold focus:outline-none focus:border-secondary transition-colors appearance-none pr-8">
+                <option value="">TÜM İLÇELER</option>
+                <?php foreach ($districts as $d): ?>
+                <option value="<?= $d['id'] ?>" <?= $filterDistrict == $d['id'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars(mb_strtoupper($d['name'])) ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+            
+            <button type="submit" class="bg-black text-white px-8 py-3 rounded-xl border-2 border-black font-bold font-headline uppercase hover:-translate-y-1 active:translate-y-0 transition-transform cursor-pointer">
+                Filtrele
+            </button>
+            
+            <?php if ($filterDistrict || $search): ?>
+            <a href="?page=kesfet" class="text-sm font-bold underline px-4 hover:text-secondary">TEMİZLE</a>
+            <?php endif; ?>
+        </form>
+    </section>
+
+    <!-- Search Results Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+        <div class="md:col-span-8 flex flex-col gap-8">
+            
+            <?php if (empty($shops)): ?>
+            <div class="bg-surface-container-lowest sketchy-border p-10 text-center flex flex-col items-center">
+                <span class="material-symbols-outlined text-6xl text-secondary mb-4">search_off</span>
+                <h2 class="font-headline font-black text-2xl mb-2">Dükkan Bulunamadı</h2>
+                <p class="font-body text-on-surface-variant font-medium">Bu kriterlere uygun bir berber yok. Lütfen aramanızı değiştirin.</p>
+            </div>
+            <?php else: ?>
+            
+                <?php foreach ($shops as $s): ?>
+                <div class="bg-surface-container-lowest sketchy-border p-6 flex flex-col sm:flex-row gap-6 relative overflow-hidden group">
+                    <div class="w-24 h-24 sm:w-32 sm:h-32 bg-[#e7edb4] rounded-xl border-2 border-black flex items-center justify-center shrink-0 overflow-hidden relative">
+                        <span class="font-headline font-black text-5xl opacity-40"><?= mb_strtoupper(mb_substr($s['shop_name'], 0, 1)) ?></span>
+                    </div>
+                    
+                    <div class="flex-grow flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start">
+                                <h2 class="font-headline font-black text-3xl text-black"><?= htmlspecialchars($s['shop_name']) ?></h2>
+                                <div class="flex items-center gap-1 bg-surface-container-highest px-2 py-1 border border-black text-xs font-bold whitespace-nowrap">
+                                    <span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">star</span> YENİ
+                                </div>
+                            </div>
+                            <p class="font-body text-on-surface-variant mt-1 italic font-medium">Sahibi: <?= htmlspecialchars($s['owner_name']) ?></p>
+                        </div>
+                        
+                        <div class="mt-6 flex flex-wrap gap-3">
+                            <button class="sketchy-border-sm bg-white px-4 py-2 flex items-center gap-2 font-bold text-sm pointer-events-none">
+                                <span class="material-symbols-outlined text-lg">content_cut</span>
+                                <?= $s['service_count'] ?> Hizmet
+                            </button>
+                            <button class="sketchy-border-sm bg-white px-4 py-2 flex items-center gap-2 font-bold text-sm pointer-events-none">
+                                <span class="material-symbols-outlined text-lg">groups</span>
+                                <?= $s['employee_count'] + 1 ?> Personel
+                            </button>
+                            <?php if ($s['district_name']): ?>
+                            <button class="sketchy-border-sm bg-white px-4 py-2 flex items-center gap-2 font-bold text-sm pointer-events-none">
+                                <span class="material-symbols-outlined text-lg">location_on</span>
+                                <?= htmlspecialchars($s['district_name']) ?>
+                            </button>
+                            <?php endif; ?>
+                            
+                            <a href="?page=berber_detay&shop_id=<?= $s['id'] ?>" class="bg-secondary text-white px-6 py-2 rounded-lg border-2 border-black font-black flex-grow sm:flex-grow-0 hover:-translate-y-1 transition-transform text-center cursor-pointer ml-auto">
+                                İNCELE & RANDEVU
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+                
             <?php endif; ?>
         </div>
-
-        <?php if ($s['address']): ?>
-        <p class="shop-card-address">📌 <?= htmlspecialchars(mb_substr($s['address'], 0, 80)) ?><?= mb_strlen($s['address']) > 80 ? '…' : '' ?></p>
-        <?php endif; ?>
-
-        <div class="shop-card-stats">
-            <div class="shop-stat">
-                <span class="shop-stat-icon">✂️</span>
-                <span><?= $s['service_count'] ?> Hizmet</span>
+        
+        <!-- Sidebar Info -->
+        <div class="md:col-span-4 sticky top-28 space-y-8 hidden md:block">
+            <div class="bg-surface-container-low sketchy-border p-6 rotate-1">
+                <h3 class="font-headline font-black text-xl mb-4 border-b-2 border-black pb-2">BİLİYOR MUYDUNUZ?</h3>
+                <p class="font-body font-medium leading-relaxed italic text-on-surface-variant text-sm">
+                    Düzenli tıraş olmak, hem kişisel imajınızı her zaman taze tutar hem de kendinize duyduğunuz özgüveni tazeler.
+                </p>
+                <div class="flex items-center gap-2 mt-4 text-xs font-bold text-black border-t-2 border-dashed border-black/20 pt-4">
+                    <span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">bolt</span> Sistemde <?= count($shops) ?> dükkan aktif.
+                </div>
             </div>
-            <div class="shop-stat">
-                <span class="shop-stat-icon">👥</span>
-                <span><?= $s['employee_count'] + 1 ?> Personel</span>
+            
+            <div class="border-4 border-black border-dashed p-8 text-center -rotate-2 bg-surface">
+                <span class="material-symbols-outlined text-5xl mb-4 text-secondary" style="font-variation-settings: 'FILL' 1;">star</span>
+                <h4 class="font-headline font-black text-2xl">PUAN SİSTEMİ</h4>
+                <p class="text-sm font-medium mt-2 text-on-surface-variant">Çok yakında her tıraştan puan kazanıp, ücretsiz hizmet alabileceksiniz!</p>
             </div>
         </div>
-
-        <a href="musteri_paneli.php?page=berber_detay&shop_id=<?= $s['id'] ?>"
-           class="btn btn-primary" style="width:100%;justify-content:center;margin-top:4px">
-            Randevu Al →
-        </a>
     </div>
-    <?php endforeach; ?>
 </div>
-
-<?php endif; ?>

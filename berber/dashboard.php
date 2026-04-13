@@ -1,23 +1,16 @@
 <?php
-// ============================================================
-//  Dashboard — İstatistikler & Özet
-//  $pdo, $shop, $user değişkenleri berber_paneli.php'den gelir
-// ============================================================
-?>
-
-<?php if (!$shop): ?>
-<!-- Dükkan yok uyarısı -->
-<div class="empty-state">
-    <div class="empty-icon">🏪</div>
-    <h2>Henüz bir dükkan oluşturmadınız</h2>
-    <p>Randevu almaya başlamak için önce dükkanınızı oluşturun.</p>
-    <a href="berber_paneli.php?page=dukkan" class="btn btn-primary">Dükkan Oluştur</a>
+if (!$shop): ?>
+<div class="max-w-screen-xl mx-auto px-6 py-20 text-center">
+    <div class="bg-surface-container-lowest sketch-border p-12 inline-block -rotate-1 border-4 border-black">
+        <span class="material-symbols-outlined text-8xl text-error mb-4 opacity-80" data-icon="store_off">store_off</span>
+        <h2 class="text-4xl font-headline font-black mb-4">Henüz bir dükkan oluşturmadınız</h2>
+        <p class="text-xl text-on-surface-variant mb-8 font-medium">Randevu almaya başlamak için dükkan ayarlarınızı yapılandırmalısınız.</p>
+        <a href="?page=dukkan" class="bg-black text-white px-8 py-3 rounded-xl border-2 border-black font-bold uppercase transition-transform hover:-translate-y-1">Dükkanı Oluştur</a>
+    </div>
 </div>
-
 <?php else:
     $shopId = $shop['id'];
 
-    // ---- İstatistikler ----
     $stmt = $pdo->prepare('SELECT COUNT(*) FROM appointments WHERE shop_id = ?');
     $stmt->execute([$shopId]);
     $totalAppointments = (int)$stmt->fetchColumn();
@@ -34,7 +27,6 @@
     $stmt->execute([$shopId]);
     $totalCustomers = (int)$stmt->fetchColumn();
 
-    // ---- Son 7 gün kazanç (grafik) ----
     $stmt = $pdo->prepare("
         SELECT DATE(appointment_time) as day, COALESCE(SUM(price_at_that_time),0) as total
         FROM appointments
@@ -53,7 +45,6 @@
         $chartValues[] = (float)($rawChart[$day] ?? 0);
     }
 
-    // ---- En popüler hizmetler ----
     $stmt = $pdo->prepare("
         SELECT s.service_name, COUNT(*) as cnt
         FROM appointments a
@@ -66,7 +57,6 @@
     $stmt->execute([$shopId]);
     $popularServices = $stmt->fetchAll();
 
-    // ---- Yoğun saatler ----
     $stmt = $pdo->prepare("
         SELECT HOUR(appointment_time) as hr, COUNT(*) as cnt
         FROM appointments
@@ -78,12 +68,11 @@
     $stmt->execute([$shopId]);
     $busyHours = $stmt->fetchAll();
 
-    // ---- Son randevular ----
     $stmt = $pdo->prepare("
-        SELECT a.*, u.full_name AS customer_name, sv.service_name,
+        SELECT a.*, COALESCE(u.full_name, a.walkin_name) AS customer_name, sv.service_name,
                e.full_name AS employee_name
         FROM appointments a
-        JOIN users  u  ON a.customer_id  = u.id
+        LEFT JOIN users u ON a.customer_id = u.id
         JOIN services sv ON a.service_id = sv.id
         JOIN users  e  ON a.employee_id  = e.id
         WHERE a.shop_id = ?
@@ -94,120 +83,164 @@
     $recent = $stmt->fetchAll();
 ?>
 
-<!-- Stat Cards -->
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(139,92,246,.15);color:#a78bfa">📅</div>
-        <div class="stat-body">
-            <div class="stat-value"><?= number_format($totalAppointments) ?></div>
-            <div class="stat-label">Toplam Randevu</div>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(245,158,11,.15);color:#fbbf24">⏳</div>
-        <div class="stat-body">
-            <div class="stat-value"><?= $pendingCount ?></div>
-            <div class="stat-label">Bekleyen Randevu</div>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(16,185,129,.15);color:#34d399">💰</div>
-        <div class="stat-body">
-            <div class="stat-value">₺<?= number_format($totalEarnings, 2) ?></div>
-            <div class="stat-label">Toplam Kazanç</div>
-        </div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(59,130,246,.15);color:#60a5fa">👤</div>
-        <div class="stat-body">
-            <div class="stat-value"><?= $totalCustomers ?></div>
-            <div class="stat-label">Müşteri Sayısı</div>
-        </div>
-    </div>
-</div>
+<div class="max-w-screen-xl mx-auto px-6 py-6 overflow-hidden">
 
-<!-- Charts Row -->
-<div class="charts-row">
-    <!-- Kazanç Grafiği -->
-    <div class="card chart-card">
-        <div class="card-header">
-            <h3 class="card-title">Son 7 Gün Kazanç</h3>
+    <!-- Header Section -->
+    <div class="mb-12 relative z-10 pt-4">
+        <div class="inline-block bg-surface-container-highest px-4 py-1 rotated-sketch mb-4 border-2 border-black">
+            <span class="font-headline font-bold uppercase tracking-widest text-xs">Genel Durum</span>
         </div>
-        <div class="card-body">
-            <canvas id="earningsChart" height="220"></canvas>
-        </div>
+        <h1 class="text-5xl md:text-7xl font-headline font-extrabold tracking-tighter text-black mb-4">
+            Merhaba, <span class="italic underline decoration-secondary"><?= htmlspecialchars(explode(' ', $user['full_name'])[0]) ?> Usta</span>
+        </h1>
+        <p class="text-xl text-on-surface-variant max-w-2xl font-medium">İşletmenizin dijital defterine hoş geldin. Dükkanın durumu aşağıdaya listelendi.</p>
     </div>
 
-    <!-- Popüler Hizmetler -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">En Çok Tercih Edilenler</h3>
+    <!-- Stats Bento Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <!-- Radevu Card -->
+        <div class="bg-surface-container-lowest border-4 border-black hand-drawn-border p-8 hover:translate-x-1 hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all">
+            <div class="flex justify-between items-start mb-4">
+                <span class="material-symbols-outlined text-secondary text-5xl" style="font-variation-settings: 'FILL' 1;">calendar_month</span>
+            </div>
+            <h3 class="text-stone-500 font-bold text-sm uppercase tracking-widest mb-1">Toplam Randevu</h3>
+            <div class="text-4xl font-headline font-black"><?= number_format($totalAppointments) ?></div>
         </div>
-        <div class="card-body">
+
+        <!-- Bekleyen Card -->
+        <div class="bg-surface-container-lowest border-4 border-black hand-drawn-border p-8 hover:translate-x-1 hover:-translate-y-1 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all">
+            <div class="flex justify-between items-start mb-4">
+                <span class="material-symbols-outlined text-[#fbbf24] text-5xl" style="font-variation-settings: 'FILL' 1;">pending_actions</span>
+                <?php if($pendingCount > 0): ?>
+                <span class="text-xs font-black bg-[#fefee5] border-2 border-black px-2 py-1 rotate-3">YENİ</span>
+                <?php endif; ?>
+            </div>
+            <h3 class="text-stone-500 font-bold text-sm uppercase tracking-widest mb-1">Bekleyen İşlem</h3>
+            <div class="text-4xl font-headline font-black"><?= $pendingCount ?></div>
+        </div>
+
+        <!-- Kazanç Card -->
+        <div class="bg-surface-container-highest border-4 border-black border-dashed p-8 hover:-translate-y-1 transition-transform rotate-1">
+            <div class="flex justify-between items-start mb-4">
+                <span class="material-symbols-outlined text-secondary text-5xl" style="font-variation-settings: 'FILL' 1;">payments</span>
+            </div>
+            <h3 class="text-on-secondary-container font-black text-sm uppercase tracking-widest mb-1">Toplam Kazanç</h3>
+            <div class="text-4xl font-headline font-black text-secondary">₺<?= number_format($totalEarnings, 0) ?></div>
+        </div>
+
+        <!-- Müşteri Card -->
+        <div class="bg-surface-container-lowest border-4 border-black hand-drawn-border p-8 hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[-6px_6px_0px_0px_rgba(0,0,0,1)] transition-all">
+            <div class="flex justify-between items-start mb-4">
+                <span class="material-symbols-outlined text-secondary text-5xl" style="font-variation-settings: 'FILL' 1;">groups</span>
+            </div>
+            <h3 class="text-stone-500 font-bold text-sm uppercase tracking-widest mb-1">Cari Müşteri</h3>
+            <div class="text-4xl font-headline font-black"><?= number_format($totalCustomers) ?></div>
+        </div>
+    </div>
+
+    <!-- Charts & Tables Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start mb-12">
+        
+        <!-- Kazanç Grafiği (Col Span 2) -->
+        <div class="lg:col-span-2 bg-surface-container-lowest border-4 border-black sketch-shadow p-6 rounded-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-headline font-black text-2xl uppercase">Son 7 Günlük Kazanç</h3>
+                <span class="material-symbols-outlined bg-[#fefee5] border-2 border-black p-1">show_chart</span>
+            </div>
+            <div class="h-64 relative w-full">
+                <canvas id="earningsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Popüler Hizmetler -->
+        <div class="bg-surface-container-low border-4 border-black sketch-shadow p-6 rounded-2xl -rotate-1">
+            <h3 class="font-headline font-black text-2xl uppercase mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-secondary">local_fire_department</span>
+                Popüler İşlemler
+            </h3>
+            
             <?php if (empty($popularServices)): ?>
-                <p class="text-muted center">Henüz randevu yok.</p>
+                <div class="text-center py-8 opacity-50 font-bold">Veri Yok.</div>
             <?php else:
                 $maxCnt = max(array_column($popularServices, 'cnt'));
-                foreach ($popularServices as $sv): ?>
-                <div class="bar-item">
-                    <div class="bar-label"><?= htmlspecialchars($sv['service_name']) ?></div>
-                    <div class="bar-track">
-                        <div class="bar-fill" style="width:<?= round($sv['cnt']/$maxCnt*100) ?>%"></div>
+                foreach ($popularServices as $sv): 
+                    $percent = round($sv['cnt']/$maxCnt*100);
+            ?>
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm font-bold uppercase mb-1">
+                        <span><?= htmlspecialchars($sv['service_name']) ?></span>
+                        <span><?= $sv['cnt'] ?> İşlem</span>
                     </div>
-                    <div class="bar-count"><?= $sv['cnt'] ?></div>
-                </div>
-            <?php endforeach; endif; ?>
-        </div>
-    </div>
-</div>
-
-<!-- Yoğun Saatler + Son Randevular Row -->
-<div class="charts-row">
-    <!-- Yoğun Saatler -->
-    <div class="card" style="max-width:340px">
-        <div class="card-header">
-            <h3 class="card-title">Yoğun Saatler</h3>
-        </div>
-        <div class="card-body">
-            <?php if (empty($busyHours)): ?>
-                <p class="text-muted center">Veri yok.</p>
-            <?php else: foreach ($busyHours as $bh): ?>
-                <div class="hour-item">
-                    <span class="hour-badge"><?= str_pad($bh['hr'],2,'0',STR_PAD_LEFT) ?>:00</span>
-                    <span class="hour-count"><?= $bh['cnt'] ?> randevu</span>
+                    <div class="h-4 bg-white border-2 border-black rounded-lg overflow-hidden relative">
+                        <div class="absolute top-0 left-0 h-full bg-black" style="width: <?= $percent ?>%"></div>
+                    </div>
                 </div>
             <?php endforeach; endif; ?>
         </div>
     </div>
 
-    <!-- Son Randevular -->
-    <div class="card" style="flex:1">
-        <div class="card-header">
-            <h3 class="card-title">Son Randevular</h3>
-            <a href="berber_paneli.php?page=randevular" class="btn btn-sm btn-ghost">Tümünü Gör →</a>
+    <!-- Yoğun saatler ve Son randevular -->
+    <div class="grid grid-cols-1 xl:grid-cols-4 gap-8 items-start mb-20">
+        
+        <div class="xl:col-span-1 border-4 border-black border-dashed p-6 bg-surface rotate-1">
+            <h3 class="font-headline font-black text-xl uppercase mb-6 flex gap-2 items-center">
+                <span class="material-symbols-outlined text-secondary">schedule</span> Yoğun Saatler
+            </h3>
+            <div class="space-y-4">
+                <?php if (empty($busyHours)): ?>
+                    <p class="font-bold opacity-50 text-center py-4">Veri yok</p>
+                <?php else: foreach ($busyHours as $bh): ?>
+                    <div class="flex justify-between items-center bg-white border-2 border-black px-4 py-3 hover:-translate-y-0.5 transition-transform">
+                        <span class="font-headline font-black text-lg"><?= str_pad($bh['hr'],2,'0',STR_PAD_LEFT) ?>:00</span>
+                        <span class="text-xs uppercase font-bold tracking-widest bg-surface-container px-2 py-1 border border-black"><?= $bh['cnt'] ?> Randevu</span>
+                    </div>
+                <?php endforeach; endif; ?>
+            </div>
         </div>
-        <div class="card-body p0">
-            <?php if (empty($recent)): ?>
-                <p class="text-muted center" style="padding:24px">Henüz randevu yok.</p>
-            <?php else: ?>
-            <table class="data-table">
-                <thead>
-                    <tr><th>Müşteri</th><th>Hizmet</th><th>Tarih</th><th>Durum</th></tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($recent as $r): ?>
-                    <tr>
-                        <td><?= htmlspecialchars($r['customer_name']) ?></td>
-                        <td><?= htmlspecialchars($r['service_name']) ?></td>
-                        <td><?= date('d M, H:i', strtotime($r['appointment_time'])) ?></td>
-                        <td><span class="badge badge-<?= $r['status'] ?>"><?= ucfirst($r['status']) ?></span></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-            <?php endif; ?>
+
+        <!-- Ledger Table Section (Son Randevular) -->
+        <div class="xl:col-span-3 bg-surface-container-low rounded-2xl overflow-hidden border-2 border-black outline outline-2 outline-offset-2 outline-black bg-surface-container-lowest">
+            <div class="p-6 border-b-2 border-black flex justify-between items-center bg-surface-container-highest">
+                <h2 class="text-2xl font-headline font-black italic">Son İşlemler</h2>
+                <a href="?page=randevular" class="btn border-2 border-black bg-white px-4 py-2 text-xs font-bold uppercase hover:bg-black hover:text-white transition-colors">Tümünü Yönet</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[600px]">
+                    <thead>
+                        <tr class="bg-surface-container-low text-on-surface-variant text-xs uppercase tracking-widest font-black border-b-2 border-black">
+                            <th class="px-6 py-4">MÜŞTERİ</th>
+                            <th class="px-6 py-4">HİZMET</th>
+                            <th class="px-6 py-4">TARİH</th>
+                            <th class="px-6 py-4 text-center">DURUM</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y-2 divide-black/10">
+                        <?php if (empty($recent)): ?>
+                        <tr><td colspan="4" class="px-6 py-8 text-center font-bold opacity-50">Kayıt Bulunamadı.</td></tr>
+                        <?php else: foreach ($recent as $r): 
+                            $statusBg = 'bg-surface-container-low text-stone-500';
+                            if ($r['status'] === 'bekliyor') $statusBg = 'bg-[#fefee5] border-secondary text-secondary';
+                            else if ($r['status'] === 'tamamlandi') $statusBg = 'bg-secondary text-white';
+                            else if ($r['status'] === 'iptal') $statusBg = 'bg-error text-white';
+                        ?>
+                        <tr class="hover:bg-surface-container-lowest transition-colors">
+                            <td class="px-6 py-4 font-bold"><?= htmlspecialchars($r['customer_name']) ?></td>
+                            <td class="px-6 py-4 font-medium"><?= htmlspecialchars($r['service_name']) ?></td>
+                            <td class="px-6 py-4 font-medium italic"><?= date('d M, H:i', strtotime($r['appointment_time'])) ?></td>
+                            <td class="px-6 py-4 text-center">
+                                <span class="px-3 py-1 border-2 border-black rounded text-xs font-black uppercase tracking-widest <?= $statusBg ?>">
+                                    <?= $r['status'] ?>
+                                </span>
+                            </td>
+                        </tr>
+                        <?php endforeach; endif; ?>
+                    </tbody>
+                </table>
+            </div>
         </div>
+
     </div>
+
 </div>
 
 <script>
@@ -220,29 +253,43 @@
             datasets: [{
                 label: 'Kazanç (₺)',
                 data: <?= json_encode($chartValues) ?>,
-                backgroundColor: 'rgba(139,92,246,0.5)',
-                borderColor: 'rgba(139,92,246,1)',
+                backgroundColor: '#000000',
+                borderColor: '#000000',
                 borderWidth: 2,
-                borderRadius: 6,
+                borderRadius: 4,
+                hoverBackgroundColor: '#00751f'
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: { display: false },
                 tooltip: {
+                    backgroundColor: '#fff',
+                    titleColor: '#000',
+                    bodyColor: '#000',
+                    borderColor: '#000',
+                    borderWidth: 2,
                     callbacks: {
-                        label: ctx => '₺' + ctx.parsed.y.toFixed(2)
+                        label: ctx => '₺' + ctx.parsed.y.toFixed(0)
                     }
                 }
             },
             scales: {
-                x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af' } },
-                y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9ca3af', callback: v => '₺'+v } }
+                x: { 
+                    grid: { color: 'rgba(0,0,0,0.1)', dashed: [5, 5] }, 
+                    ticks: { color: '#000', font: { weight: 'bold' } } 
+                },
+                y: {
+                    grid: { color: 'rgba(0,0,0,0.1)' },
+                    ticks: { color: '#000', font: { weight: 'bold' }, callback: v => '₺'+v, stepSize: 50 },
+                    beginAtZero: true,
+                    suggestedMax: 50
+                }
             }
         }
     });
 })();
 </script>
-
 <?php endif; ?>

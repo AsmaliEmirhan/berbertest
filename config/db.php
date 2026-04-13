@@ -5,10 +5,22 @@
 date_default_timezone_set('Europe/Istanbul');
 
 
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'u225191980_berber'); // Hostingerin verdigi isim
-define('DB_USER', 'u225191980_emhan'); // Hostingerin verdigi kullanici
-define('DB_PASS', '117988Em117988Em!'); // Hostingerde actiginiz sifre
+$isLocalhost = in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1']);
+
+if ($isLocalhost) {
+    // XAMPP (Local) Ayarları
+    define('DB_HOST', 'localhost');
+    define('DB_NAME', 'berber_local'); // phpMyAdmin'de bu adda bir veritabanı oluşturun
+    define('DB_USER', 'root');
+    define('DB_PASS', '');
+} else {
+    // Hostinger (Canlı Sunucu) Ayarları
+    define('DB_HOST', 'localhost');
+    define('DB_NAME', 'u225191980_berber');
+    define('DB_USER', 'u225191980_emhan');
+    define('DB_PASS', '117988Em117988Em!');
+}
+
 define('DB_CHARSET', 'utf8mb4');
 
 function getPDO(): PDO {

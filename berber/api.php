@@ -44,6 +44,8 @@ match ($action) {
     'add_employee'            => addEmployee($pdo, $userId),
     'remove_employee'         => removeEmployee($pdo, $userId),
     'update_appointment'      => updateAppointment($pdo, $userId),
+    'add_walkin'              => addWalkin($pdo, $userId),
+    'activate_plus'           => activatePlus($pdo, $userId),
     default                   => respond(false, 'Geçersiz işlem.')
 };
 
@@ -77,9 +79,12 @@ function addService(PDO $pdo, int $userId): void {
     $price    = (float)($_POST['price'] ?? 0);
     $duration = (int)($_POST['duration_minutes'] ?? 30);
 
-    if (!$name)       respond(false, 'Hizmet adı zorunludur.');
-    if ($price < 0)   respond(false, 'Fiyat negatif olamaz.');
-    if ($duration < 5) respond(false, 'Süre en az 5 dakika olmalıdır.');
+    if (!$name)          respond(false, 'Hizmet adı zorunludur.');
+    if (mb_strlen($name) > 100) respond(false, 'Hizmet adı en fazla 100 karakter olabilir.');
+    if ($price < 0)      respond(false, 'Fiyat negatif olamaz.');
+    if ($price > 10000)  respond(false, 'Fiyat 10.000 TL üzerinde olamaz.');
+    if ($duration < 5)   respond(false, 'Süre en az 5 dakika olmalıdır.');
+    if ($duration > 480) respond(false, 'Süre 8 saati (480 dk) geçemez.');
 
     $stmt = $pdo->prepare('INSERT INTO services (shop_id, service_name, price, duration_minutes) VALUES (?,?,?,?)');
     $stmt->execute([$shop['id'], $name, $price, $duration]);
@@ -183,6 +188,11 @@ function removeEmployee(PDO $pdo, int $userId): void {
     $employeeId = (int)($_POST['employee_id'] ?? 0);
     if (!$employeeId) respond(false, 'Çalışan ID eksik.');
 
+    // Çalışanın bu dükkanla ilişkisi var mı?
+    $stmt = $pdo->prepare('SELECT id FROM shop_employees WHERE shop_id = ? AND employee_id = ?');
+    $stmt->execute([$shop['id'], $employeeId]);
+    if (!$stmt->fetch()) respond(false, 'Bu çalışan dükkanınızda kayıtlı değil.');
+
     $stmt = $pdo->prepare('DELETE FROM shop_employees WHERE shop_id = ? AND employee_id = ?');
     $stmt->execute([$shop['id'], $employeeId]);
     respond(true, 'Çalışan kaldırıldı.');
@@ -198,14 +208,94 @@ function updateAppointment(PDO $pdo, int $userId): void {
     if (!$id) respond(false, 'Randevu ID eksik.');
     if (!in_array($status, ['bekliyor','tamamlandi','iptal'], true)) respond(false, 'Geçersiz durum.');
 
-    // Sahiplik kontrolü
-    $stmt = $pdo->prepare('SELECT id FROM appointments WHERE id = ? AND shop_id = ?');
+    // Sahiplik kontrolü + randevu zamanı al
+    $stmt = $pdo->prepare('SELECT id, appointment_time FROM appointments WHERE id = ? AND shop_id = ?');
     $stmt->execute([$id, $shop['id']]);
-    if (!$stmt->fetch()) respond(false, 'Randevu bulunamadı.');
+    $appt = $stmt->fetch();
+    if (!$appt) respond(false, 'Randevu bulunamadı.');
+
+    // İptal işlemi: en az 24 saat öncesinde olmalı
+    if ($status === 'iptal') {
+        $apptDt = new DateTime($appt['appointment_time'], new DateTimeZone('Europe/Istanbul'));
+        $now    = new DateTime('now', new DateTimeZone('Europe/Istanbul'));
+        $diff   = $now->diff($apptDt);
+        // $diff->invert = 1 means appointment already passed
+        $hoursLeft = ($diff->days * 24) + $diff->h + ($diff->i / 60);
+        if ($diff->invert || $hoursLeft < 24) {
+            respond(false, 'Randevuya 24 saatten az kaldığı için iptal edilemez.');
+        }
+    }
 
     $stmt = $pdo->prepare('UPDATE appointments SET status = ? WHERE id = ?');
     $stmt->execute([$status, $id]);
     respond(true, 'Randevu güncellendi.');
+}
+
+function addWalkin(PDO $pdo, int $userId): void {
+    $user = getUser($pdo, $userId);
+    if (!$user['is_plus']) respond(false, 'Bu özellik Plus üyelere özeldir.');
+
+    $shop = getOwnShop($pdo, $userId);
+    if (!$shop) respond(false, 'Önce bir dükkan oluşturun.');
+
+    $firstName  = trim($_POST['first_name'] ?? '');
+    $lastName   = trim($_POST['last_name']  ?? '');
+    $serviceId  = (int)($_POST['service_id']  ?? 0);
+    $employeeId = (int)($_POST['employee_id'] ?? 0);
+    $date       = trim($_POST['date'] ?? '');
+    $time       = trim($_POST['time'] ?? '');
+
+    if (!$firstName || !$lastName) respond(false, 'İsim ve soyisim zorunludur.');
+    if (!$serviceId)  respond(false, 'Hizmet seçiniz.');
+    if (!$employeeId) respond(false, 'Personel seçiniz.');
+    if (!$date || !$time) respond(false, 'Tarih ve saat zorunludur.');
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) respond(false, 'Geçersiz tarih formatı.');
+    if (!preg_match('/^\d{2}:\d{2}$/', $time))        respond(false, 'Geçersiz saat formatı.');
+
+    $datetime = $date . ' ' . $time . ':00';
+
+    // Hizmet bu dükkana mı ait?
+    $stmt = $pdo->prepare('SELECT id, price, duration_minutes FROM services WHERE id = ? AND shop_id = ?');
+    $stmt->execute([$serviceId, $shop['id']]);
+    $service = $stmt->fetch();
+    if (!$service) respond(false, 'Hizmet bulunamadı.');
+
+    // Personel bu dükkanda mı çalışıyor? (sahip dahil)
+    $stmt = $pdo->prepare("
+        SELECT u.id FROM users u
+        WHERE u.id = ? AND (
+            u.id = ? OR
+            EXISTS (SELECT 1 FROM shop_employees se WHERE se.shop_id = ? AND se.employee_id = u.id)
+        )
+    ");
+    $stmt->execute([$employeeId, $userId, $shop['id']]);
+    if (!$stmt->fetch()) respond(false, 'Personel bulunamadı.');
+
+    $walkinName = $firstName . ' ' . $lastName;
+
+    $stmt = $pdo->prepare("
+        INSERT INTO appointments
+            (customer_id, walkin_name, shop_id, employee_id, service_id, appointment_time, price_at_that_time, total_duration, status)
+        VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, 'tamamlandi')
+    ");
+    $stmt->execute([
+        $walkinName,
+        $shop['id'],
+        $employeeId,
+        $serviceId,
+        $datetime,
+        $service['price'],
+        $service['duration_minutes'],
+    ]);
+    respond(true, 'Yüz yüze randevu oluşturuldu.', ['id' => (int)$pdo->lastInsertId()]);
+}
+
+function activatePlus(PDO $pdo, int $userId): void {
+    $user = getUser($pdo, $userId);
+    if ($user['is_plus']) respond(false, 'Zaten Plus üyesiniz.');
+    $pdo->prepare('UPDATE users SET is_plus = 1 WHERE id = ?')->execute([$userId]);
+    respond(true, 'Plus üyeliğiniz aktifleştirildi.');
 }
 
 // ---- Helper ----

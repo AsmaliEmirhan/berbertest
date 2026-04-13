@@ -1,179 +1,341 @@
 <?php
-// ============================================================
-//  index.php — Auth Sayfası (Giriş / Kayıt)
-// ============================================================
-
 session_start();
 require_once __DIR__ . '/config/db.php';
 
-// Zaten giriş yapmışsa yönlendir
 if (!empty($_SESSION['role'])) {
     header('Location: ' . ($_SESSION['role'] === 'berber' ? 'berber_paneli.php' : 'musteri_paneli.php'));
     exit;
 }
 
-// İlçe listesini çek
 try {
     $districts = getPDO()->query('SELECT id, name FROM districts ORDER BY name')->fetchAll();
 } catch (Exception) {
     $districts = [];
 }
+
+$view = $_GET['view'] ?? 'landing';
+$role = $_GET['role'] ?? 'musteri';
 ?>
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="tr" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Berber — Giriş & Kayıt</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/auth.css">
+    <title>Berber Randevu - Dijital Defter</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Work+Sans:wght@100..900&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+              "primary-fixed": "#e2e2e2", "surface-container-highest": "#e7edb4", "primary-container": "#e2e2e2", "error": "#a54731", "surface-container": "#f4f7ce", "on-background": "#363b12", "on-tertiary-container": "#5c5c5c", "inverse-primary": "#ffffff", "primary-fixed-dim": "#d4d4d4", "on-tertiary-fixed": "#494949", "secondary-container": "#94f990", "inverse-surface": "#0e0f03", "secondary-fixed": "#94f990", "surface-bright": "#fefee5", "secondary-dim": "#00671a", "secondary-fixed-dim": "#86eb83", "inverse-on-surface": "#9e9e88", "on-surface-variant": "#63683a", "outline": "#7f8454", "outline-variant": "#b8bd88", "tertiary": "#646464", "on-secondary-container": "#006017", "surface-container-lowest": "#ffffff", "error-container": "#fe8b70", "secondary": "#00751f", "on-error-container": "#742410", "on-secondary-fixed-variant": "#006b1b", "on-tertiary-fixed-variant": "#666666", "on-surface": "#363b12", "surface-container-low": "#fafcda", "surface-tint": "#5e5e5e", "primary": "#5e5e5e", "primary-dim": "#525252", "on-primary": "#f8f8f8", "on-secondary": "#ffffff", "on-tertiary": "#ffffff", "on-primary-fixed-variant": "#5b5b5b", "surface": "#fefee5", "on-error": "#ffffff", "on-primary-fixed": "#3f3f3f", "tertiary-container": "#f3f3f3", "on-secondary-fixed": "#004a10", "on-primary-container": "#525252", "surface-container-high": "#eef2c1", "error-dim": "#5c1202", "surface-variant": "#e7edb4", "tertiary-fixed": "#f3f3f3", "background": "#fefee5", "tertiary-fixed-dim": "#e5e5e5", "tertiary-dim": "#585858", "surface-dim": "#e1e8a7"
+            },
+            "fontFamily": {
+              "headline": ["Plus Jakarta Sans"], "body": ["Work Sans"], "label": ["Work Sans"]
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; display: inline-block; vertical-align: middle; }
+        .sketch-border { border: 2px solid #000000; box-shadow: 3px 3px 0px 0px #000000; }
+        .sketch-border-heavy { border: 3px solid #000000; box-shadow: 6px 6px 0px 0px #000000; }
+        .paper-grain, .ink-grain {
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.03; pointer-events: none;
+        }
+        .sketch-input { border: none; border-bottom: 2px solid #000000; background: transparent; transition: all 0.2s ease; }
+        .sketch-input:focus { outline: none; border-bottom-width: 4px; padding-bottom: 2px; }
+        .sketch-input-ye-ol { width: 100%; background: transparent; border-top: 0; border-left: 0; border-right: 0; border-bottom: 2px solid #000000; outline: none; }
+        .sketch-input-ye-ol:focus { border-color: #00751f; border-width: 0 0 2px 0; box-shadow: none; }
+        /* Auth specific styles for JS form */
+        #alertBox { display: none; padding: 10px; margin-bottom: 16px; border-radius: 4px; font-weight: 500; text-align: center; }
+        #alertBox.show { display: block; }
+        #alertBox.error { background-color: #fe8b70; color: #742410; border: 2px solid #a54731; }
+        #alertBox.success { background-color: #94f990; color: #006017; border: 2px solid #00751f; }
+    </style>
 </head>
-<body>
+<body class="bg-surface font-body text-on-surface selection:bg-secondary-container min-h-screen flex flex-col relative overflow-x-hidden">
+<div class="fixed inset-0 paper-grain z-50"></div>
 
-<div class="auth-wrapper">
-
-    <!-- Logo -->
-    <div class="auth-logo">
-        <div class="logo-icon">✂️</div>
-        <h1>BerberBook</h1>
-        <p>Randevunu kolayca yönet</p>
+<?php if ($view === 'landing'): ?>
+<!-- ================== LANDING VIEW ================== -->
+<header class="bg-[#fefee5] border-b-2 border-black w-full px-6 py-4 z-40 relative">
+    <div class="flex justify-between items-center w-full max-w-screen-2xl mx-auto font-['Plus_Jakarta_Sans'] tracking-tight">
+        <div class="text-2xl font-bold italic text-black underline decoration-wavy">Berber Randevu</div>
+        <nav class="hidden md:flex gap-8 items-center">
+            <a class="text-stone-600 font-medium hover:text-black hover:-translate-y-0.5 transition-transform" href="#">Berberler</a>
+            <a class="text-stone-600 font-medium hover:text-black hover:-translate-y-0.5 transition-transform" href="#">Hizmetler</a>
+        </nav>
+        <div class="flex items-center gap-4">
+            <a href="?view=login" class="bg-secondary text-white px-6 py-2 rounded-xl sketch-border font-bold hover:-translate-y-0.5 active:scale-95 transition-all outline-none">Giriş Yap</a>
+        </div>
     </div>
+</header>
+<main class="relative flex-grow flex flex-col items-center justify-center py-20 px-4">
+    <!-- Background Sketch Ornaments -->
+    <div class="absolute top-20 -left-12 opacity-10 pointer-events-none rotate-[-15deg]"><span class="material-symbols-outlined text-[240px]" data-icon="content_cut">content_cut</span></div>
+    <div class="absolute bottom-40 -right-16 opacity-10 pointer-events-none rotate-[12deg]"><span class="material-symbols-outlined text-[280px]" data-icon="history_edu">history_edu</span></div>
 
-    <!-- Card -->
-    <div class="auth-card">
-
-        <!-- Role Tabs -->
-        <div class="role-tabs" role="tablist">
-            <div class="tabs-slider" id="tabsSlider"></div>
-            <button class="role-tab active" id="tabMusteri" role="tab" aria-selected="true">
-                <span class="tab-icon">👤</span> Müşteri
-            </button>
-            <button class="role-tab" id="tabBerber" role="tab" aria-selected="false">
-                <span class="tab-icon">✂️</span> Berber
-            </button>
+    <section class="max-w-screen-xl mx-auto flex flex-col items-center text-center relative z-10 w-full">
+        <h1 class="font-headline text-5xl md:text-7xl font-extrabold tracking-tighter text-black mb-8 leading-tight italic">
+            Dijital <span class="underline decoration-secondary decoration-4 underline-offset-8">Berber Defteri</span>
+        </h1>
+        <p class="text-xl text-on-surface-variant max-w-2xl mb-16 font-medium">Modern berberler ve müşteriler için dijital randevu platformu.</p>
+        
+        <div class="grid md:grid-cols-2 gap-8 w-full max-w-4xl">
+            <!-- Customer -->
+            <div class="group relative bg-surface-container-lowest p-10 rounded-xl sketch-border transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-2 hover:rotate-1">
+                <div class="absolute -top-10 -right-6 group-hover:scale-110 transition-transform"><span class="material-symbols-outlined text-7xl text-secondary">person_search</span></div>
+                <h2 class="font-headline text-3xl font-black mb-4">Müşteri</h2>
+                <p class="text-stone-600 mb-8 font-medium">Size en yakın berberi bulun, portfolyosunu inceleyin ve anında randevu alın.</p>
+                <a href="?view=register&role=musteri" class="block w-full bg-black text-white text-center py-4 rounded-lg text-lg font-bold uppercase tracking-widest hover:bg-secondary transition-colors outline-none cursor-pointer">Randevu Al</a>
+            </div>
+            <!-- Barber -->
+            <div class="group relative bg-surface-container-lowest p-10 rounded-xl sketch-border transition-all shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-2 hover:-rotate-1">
+                <div class="absolute -top-10 -left-6 group-hover:scale-110 transition-transform"><span class="material-symbols-outlined text-7xl text-black">storefront</span></div>
+                <h2 class="font-headline text-3xl font-black mb-4">Berber</h2>
+                <p class="text-stone-600 mb-8 font-medium">Randevularınızı yönetin, portfolyonuzu sergileyin ve müşteri sadakatini artırın.</p>
+                <a href="?view=register&role=berber" class="block w-full border-4 border-black text-center py-4 rounded-lg text-lg font-bold uppercase tracking-widest hover:bg-black hover:text-white transition-all outline-none cursor-pointer">Dükkanını Aç</a>
+            </div>
         </div>
+    </section>
+</main>
 
-        <!-- Form Title -->
-        <div style="margin-bottom:20px;">
-            <h2 id="formTitle" style="font-size:1.25rem;font-weight:700;letter-spacing:-0.3px;"></h2>
-            <p id="formSubtitle" style="font-size:0.83rem;color:var(--text-muted);margin-top:4px;"></p>
-        </div>
-
-        <!-- Mode Switch -->
-        <div class="mode-switch">
-            <button class="mode-btn" id="modeLogin">Giriş Yap</button>
-            <button class="mode-btn" id="modeRegister">Kayıt Ol</button>
-        </div>
-
-        <!-- Alert -->
-        <div class="alert" id="alertBox" role="alert">
-            <span class="alert-icon"></span>
+<?php elseif ($view === 'login'): ?>
+<!-- ================== LOGIN VIEW ================== -->
+<header class="w-full flex p-6 absolute top-0 left-0 z-50">
+    <a href="?view=landing" class="text-black font-bold uppercase tracking-widest text-sm flex items-center gap-2 hover:text-secondary transition-colors"><span class="material-symbols-outlined">arrow_back</span> Ana Səhifə</a>
+</header>
+<main class="flex-grow flex flex-col items-center justify-center px-6 relative z-10 w-full h-full">
+    <div class="absolute top-20 left-10 md:left-24 opacity-20 -rotate-12 select-none pointer-events-none"><span class="material-symbols-outlined text-[120px]" data-icon="content_cut">content_cut</span></div>
+    
+    <header class="mb-12 text-center mt-12 md:mt-0">
+        <h1 class="text-4xl md:text-5xl font-headline font-bold italic underline decoration-wavy tracking-tight mb-2">Berber Randevu</h1>
+        <p class="font-label text-sm uppercase tracking-widest text-primary">Dijital Defter Girişi</p>
+    </header>
+    
+    <div class="w-full max-w-md bg-surface-container-lowest p-8 md:p-12 sketch-border rounded-xl -rotate-1 transform">
+        <div id="alertBox">
             <span class="alert-msg"></span>
         </div>
+        
+        <form id="authForm" class="space-y-10" novalidate onsubmit="return false;">
+            <input type="hidden" name="action" value="login">
+            
+            <div class="flex bg-surface-container rounded-lg p-1 border-2 border-black mb-6">
+                <button type="button" class="role-btn active flex-1 py-2 rounded font-bold text-sm uppercase text-black" data-role="musteri">Müşteri</button>
+                <button type="button" class="role-btn flex-1 py-2 rounded font-bold text-sm uppercase text-black opacity-60 hover:opacity-100" data-role="berber">Berber</button>
+            </div>
+            <input type="hidden" name="role" id="roleInput" value="musteri">
 
-        <!-- Form -->
-        <form id="authForm" method="POST" action="auth_handler.php" novalidate>
+            <div class="relative">
+                <label class="block font-label text-xs uppercase tracking-widest font-black mb-2 px-1">E-Posta</label>
+                <div class="flex items-center">
+                    <span class="material-symbols-outlined absolute left-0 text-primary">alternate_email</span>
+                    <input name="email" class="w-full pl-8 py-2 sketch-input font-headline text-lg placeholder:text-outline-variant/40" placeholder="ornek@mail.com" type="email" required/>
+                </div>
+            </div>
+            
+            <div class="relative">
+                <label class="block font-label text-xs uppercase tracking-widest font-black mb-2 px-1">Parola</label>
+                <div class="flex items-center">
+                    <span class="material-symbols-outlined absolute left-0 text-primary">lock_open</span>
+                    <input name="password" class="w-full pl-8 py-2 sketch-input font-headline text-lg placeholder:text-outline-variant/40" placeholder="••••••••" type="password" required/>
+                </div>
+            </div>
+            
+            <div class="pt-4">
+                <button id="submitBtn" class="w-full bg-secondary text-white font-headline font-bold text-xl py-4 sketch-border rounded-xl flex items-center justify-center gap-3 hover:-translate-y-1 hover:rotate-1 active:translate-y-0 transition-all cursor-pointer" type="submit">
+                    <span>Giriş Yap</span>
+                    <span class="material-symbols-outlined">login</span>
+                </button>
+            </div>
+        </form>
+        
+        <div class="mt-12 flex flex-col items-center gap-4 border-t-2 border-black/5 pt-8">
+            <a class="font-label text-sm uppercase tracking-widest text-primary hover:text-black hover:italic transition-all" href="#">Şifremi Unuttum</a>
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-label text-outline uppercase tracking-widest">Hesabın yok mu?</span>
+                <a class="font-headline font-black text-black border-b-2 border-secondary pb-0.5 hover:bg-secondary-container transition-colors" href="?view=register" id="switchToReg">ÜYE OL</a>
+            </div>
+        </div>
+    </div>
+</main>
 
-            <!-- Ad / Soyad (sadece kayıtta) -->
-            <div class="form-row hidden" id="rowName">
-                <div class="field">
-                    <label for="firstName">Ad</label>
-                    <div class="input-wrap">
-                        <input type="text" id="firstName" name="first_name"
-                               placeholder="Adınız" autocomplete="given-name">
-                        <span class="input-icon">👤</span>
+<?php elseif ($view === 'register'): ?>
+<!-- ================== REGISTER VIEW ================== -->
+<header class="w-full flex justify-between p-6 absolute top-0 left-0 z-50">
+    <a href="?view=landing" class="text-black font-bold uppercase tracking-widest text-sm flex items-center gap-2 hover:text-secondary transition-colors"><span class="material-symbols-outlined">arrow_back</span> Vazgeç</a>
+</header>
+<main class="flex-grow flex items-center justify-center px-4 py-20 relative overflow-hidden w-full">
+    <div class="max-w-4xl w-full grid md:grid-cols-2 bg-surface-container-lowest sketch-border-heavy relative overflow-hidden">
+        <!-- Identity -->
+        <div class="bg-surface-container-high p-12 flex flex-col justify-center border-b-2 md:border-b-0 md:border-r-2 border-black relative">
+            <div class="mb-8 rotate-[-2deg]">
+                <h1 class="font-headline text-5xl font-black text-black leading-tight tracking-tighter">Deftere<br/><span id="regTitleWord"><?= $role === 'berber' ? 'Dükkan Aç' : 'Kaydolun.' ?></span></h1>
+                <p class="mt-4 text-on-surface-variant font-medium text-lg"><?= $role === 'berber' ? 'İşletmeni yönet, randevularını kolayca takip et.' : 'En iyi berberler, en tarz tıraşlar ve hızlı randevu için yerinizi ayırtın.' ?></p>
+            </div>
+            <!-- Hand drawn circle decoration -->
+            <div class="absolute top-8 right-8 w-16 h-16 border-2 border-black rounded-full opacity-20 border-dashed animate-spin-slow"></div>
+        </div>
+        
+        <!-- Registration Form -->
+        <div class="p-10 md:p-12 bg-surface-container-lowest">
+            <div class="mb-10">
+                <h2 class="text-2xl font-bold font-headline text-black flex items-center gap-2">Yeni Üyelik <span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">edit_square</span></h2>
+            </div>
+            
+            <div id="alertBox"><span class="alert-msg"></span></div>
+            
+            <form id="authForm" class="space-y-6" novalidate onsubmit="return false;">
+                <input type="hidden" name="action" value="register">
+                <input type="hidden" name="role" id="roleInput" value="<?= htmlspecialchars($role) ?>">
+                
+                <div class="flex bg-surface-container rounded-lg p-1 border-2 border-black mb-6">
+                    <button type="button" class="role-btn <?= $role === 'musteri' ? 'active' : 'opacity-60' ?> flex-1 py-1.5 rounded font-bold text-sm uppercase text-black hover:opacity-100" data-role="musteri">Müşteri</button>
+                    <button type="button" class="role-btn <?= $role === 'berber' ? 'active bg-black text-white' : 'opacity-60' ?> flex-1 py-1.5 rounded font-bold text-sm uppercase hover:opacity-100" data-role="berber">Berber</button>
+                </div>
+            
+                <div class="flex gap-4">
+                    <div class="space-y-1 flex-1">
+                        <label class="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant">Ad</label>
+                        <input name="first_name" class="sketch-input-ye-ol py-2 text-lg" placeholder="Ahmet" type="text" required/>
+                    </div>
+                    <div class="space-y-1 flex-1">
+                        <label class="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant">Soyad</label>
+                        <input name="last_name" class="sketch-input-ye-ol py-2 text-lg" placeholder="Yılmaz" type="text" required/>
                     </div>
                 </div>
-                <div class="field">
-                    <label for="lastName">Soyad</label>
-                    <div class="input-wrap">
-                        <input type="text" id="lastName" name="last_name"
-                               placeholder="Soyadınız" autocomplete="family-name">
-                        <span class="input-icon">👤</span>
-                    </div>
+                
+                <div class="space-y-1">
+                    <label class="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant">E-posta</label>
+                    <input name="email" class="sketch-input-ye-ol py-2 text-lg" placeholder="ahmet@email.com" type="email" required/>
                 </div>
-            </div>
-
-            <!-- E-posta -->
-            <div class="field">
-                <label for="email">E-posta</label>
-                <div class="input-wrap">
-                    <input type="email" id="email" name="email" required
-                           placeholder="ornek@mail.com" autocomplete="email">
-                    <span class="input-icon">✉️</span>
+                
+                <div class="space-y-1">
+                    <label class="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant">Parola</label>
+                    <input name="password" class="sketch-input-ye-ol py-2 text-lg" placeholder="••••••••" type="password" required/>
                 </div>
-            </div>
-
-            <!-- Şifre -->
-            <div class="field">
-                <label for="password">Şifre</label>
-                <div class="input-wrap has-toggle">
-                    <input type="password" id="password" name="password" required
-                           placeholder="••••••••" autocomplete="current-password" minlength="6">
-                    <button type="button" class="toggle-pass" aria-label="Şifreyi göster/gizle">
-                        <!-- eye icon -->
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-                             fill="none" stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                            <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            <!-- İlçe (sadece müşteri kaydında) -->
-            <div class="field hidden" id="fieldDistrict">
-                <label for="districtId">İlçe <span style="color:var(--text-muted);font-weight:400;font-size:0.72rem;">(opsiyonel)</span></label>
-                <div class="input-wrap">
-                    <select id="districtId" name="district_id">
-                        <option value="">İlçe seçin…</option>
+                
+                <div class="space-y-1" id="districtWrapper" style="<?= $role === 'berber' ? 'display:none;' : '' ?>">
+                    <label class="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant">İlçe</label>
+                    <select name="district_id" class="sketch-input-ye-ol py-2 text-lg appearance-none bg-transparent">
+                        <option value="">Seçiniz (Opsiyonel)</option>
                         <?php foreach ($districts as $d): ?>
-                            <option value="<?= htmlspecialchars($d['id']) ?>">
-                                <?= htmlspecialchars($d['name']) ?>
-                            </option>
+                            <option value="<?= htmlspecialchars($d['id']) ?>"><?= htmlspecialchars($d['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <span class="input-icon">📍</span>
                 </div>
-            </div>
+                
+                <div class="pt-4">
+                    <button id="submitBtn" class="w-full bg-secondary text-white py-4 sketch-border hover:translate-x-1 hover:translate-y-1 hover:shadow-none transition-all duration-75 font-bold text-lg flex items-center justify-center gap-3 cursor-pointer" type="submit">
+                        Üye Ol <span class="material-symbols-outlined">arrow_forward</span>
+                    </button>
+                </div>
+                <div class="text-center pt-4">
+                    <p class="text-sm text-on-surface-variant">
+                        Zaten üye misiniz? <a class="text-black font-bold underline decoration-secondary decoration-2 hover:text-secondary transition-colors" href="?view=login">Giriş Yap</a>
+                    </p>
+                </div>
+            </form>
+            <div class="absolute bottom-0 right-0 w-8 h-8 bg-surface-container-high border-t-2 border-l-2 border-black"></div>
+        </div>
+    </div>
+</main>
+<?php endif; ?>
 
-            <!-- Submit -->
-            <button type="submit" class="btn-submit" id="submitBtn">
-                <span class="spinner"></span>
-                <span class="btn-text" id="btnText">Giriş Yap</span>
-            </button>
+<footer class="bg-surface-container-low border-t-4 border-black w-full mt-auto relative z-20">
+    <div class="flex flex-col md:flex-row justify-between items-center w-full px-8 py-8 gap-6 max-w-screen-2xl mx-auto font-label text-sm uppercase tracking-widest">
+        <div class="font-black text-black">Berber Defteri</div>
+        <div class="flex flex-wrap justify-center gap-6">
+            <a class="text-stone-500 hover:text-black italic transition-colors" href="#">Hakkımızda</a>
+            <a class="text-stone-500 hover:text-black italic transition-colors" href="#">İletişim</a>
+        </div>
+        <div class="text-stone-500 normal-case opacity-70 tracking-normal">© 2024 Berber Randevu - Dijital Defter</div>
+    </div>
+</footer>
 
-        </form>
-
-        <!-- Footer link -->
-        <p class="form-footer" style="margin-top:20px;">
-            Hesabın yok mu?
-            <a href="#" id="switchToRegister">Kayıt ol</a>
-        </p>
-
-    </div><!-- /.auth-card -->
-</div><!-- /.auth-wrapper -->
-
-<script src="assets/js/auth.js"></script>
 <script>
-    // Quick switch link
-    document.getElementById('switchToRegister').addEventListener('click', function(e){
-        e.preventDefault();
-        document.getElementById('modeRegister').click();
-        this.closest('.form-footer').innerHTML =
-            'Zaten hesabın var mı? <a href="#" id="switchToLogin">Giriş yap</a>';
-        document.getElementById('switchToLogin').addEventListener('click', function(e){
-            e.preventDefault();
-            document.getElementById('modeLogin').click();
-            document.querySelector('.form-footer').innerHTML =
-                'Hesabın yok mu? <a href="#" id="switchToRegister">Kayıt ol</a>';
-            // re-bind (simple reload logic for demo)
-            location.reload();
+document.addEventListener('DOMContentLoaded', function() {
+    const roleBtns = document.querySelectorAll('.role-btn');
+    const roleInput = document.getElementById('roleInput');
+    const districtWrapper = document.getElementById('districtWrapper');
+    const regTitleWord = document.getElementById('regTitleWord');
+    const switchToReg = document.getElementById('switchToReg');
+    
+    // Switch Role logic
+    roleBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const role = this.dataset.role;
+            if (roleInput) roleInput.value = role;
+            
+            roleBtns.forEach(b => {
+                b.classList.remove('active', 'bg-black', 'text-white');
+                b.classList.add('opacity-60', 'text-black');
+            });
+            this.classList.add('active');
+            this.classList.remove('opacity-60');
+            
+            // Register ui changes
+            if(districtWrapper) {
+                this.classList.add('bg-black', 'text-white');
+                this.classList.remove('text-black');
+                if (role === 'berber') {
+                    districtWrapper.style.display = 'none';
+                    if(regTitleWord) regTitleWord.textContent = 'Dükkan Aç';
+                } else {
+                    districtWrapper.style.display = 'block';
+                    if(regTitleWord) regTitleWord.textContent = 'Kaydolun.';
+                }
+            } else {
+                // Login ui changes
+                this.classList.add('bg-white', 'sketch-border');
+                if (switchToReg) switchToReg.href = '?view=register&role=' + role;
+            }
         });
     });
+
+    const form = document.getElementById('authForm');
+    const alertBox = document.getElementById('alertBox');
+    const alertMsg = document.querySelector('.alert-msg');
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            alertBox.classList.remove('show', 'error', 'success');
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.7';
+            
+            const fd = new FormData(form);
+            
+            try {
+                const res = await fetch('auth_handler.php', { method: 'POST', body: fd });
+                const data = await res.json();
+
+                alertBox.classList.add('show', data.success ? 'success' : 'error');
+                alertMsg.textContent = data.message;
+                
+                if (data.success) {
+                    setTimeout(() => window.location.href = data.redirect, 1000);
+                } else {
+                    submitBtn.disabled = false;
+                    submitBtn.style.opacity = '1';
+                }
+            } catch (err) {
+                alertBox.classList.add('show', 'error');
+                alertMsg.textContent = 'Sunucuya ulaşılamadı.';
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '1';
+            }
+        });
+    }
+});
 </script>
 </body>
 </html>

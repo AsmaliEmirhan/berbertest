@@ -71,16 +71,30 @@ function getSlots(PDO $pdo): void {
     }
     $dateStr = date('Y-m-d', $dateTs);
 
-    // Hizmet süresi
-    $stmt = $pdo->prepare('SELECT duration_minutes FROM services WHERE id = ?');
-    $stmt->execute([$serviceId]);
-    $duration = (int)($stmt->fetchColumn() ?: 30);
+    // Hizmet süresi (Ana hizmet) — shop_id kontrolü ile
+    $stmt = $pdo->prepare('SELECT duration_minutes FROM services WHERE id = ? AND shop_id = ?');
+    $stmt->execute([$serviceId, $shopId]);
+    $svcRow = $stmt->fetch();
+    if (!$svcRow) respond(false, 'Hizmet bulunamadı.');
+    $duration = (int)$svcRow['duration_minutes'];
+
+    // Ekstra Hizmetler — shop_id kontrolü ile
+    $extraIds = json_decode($_POST['extra_services'] ?? '[]', true);
+    if (!empty($extraIds) && is_array($extraIds)) {
+        $extraIds = array_map('intval', $extraIds);
+        $inQuery  = implode(',', array_fill(0, count($extraIds), '?'));
+        $stmt = $pdo->prepare("SELECT duration_minutes FROM services WHERE shop_id = ? AND id IN ($inQuery)");
+        $stmt->execute(array_merge([$shopId], $extraIds));
+        foreach ($stmt->fetchAll() as $row) {
+            $duration += (int)$row['duration_minutes'];
+        }
+    }
 
     // O günkü mevcut randevular (bu çalışan için, iptal hariç)
+    // Artık 'total_duration' var, onu kullanıyoruz.
     $stmt = $pdo->prepare("
-        SELECT a.appointment_time, sv.duration_minutes
+        SELECT a.appointment_time, a.total_duration as duration_minutes
         FROM appointments a
-        JOIN services sv ON a.service_id = sv.id
         WHERE a.employee_id = ? AND DATE(a.appointment_time) = ? AND a.status != 'iptal'
     ");
     $stmt->execute([$employeeId, $dateStr]);
@@ -133,11 +147,36 @@ function bookAppointment(PDO $pdo, int $userId): void {
     $ts = strtotime($datetime);
     if (!$ts || $ts < time()) respond(false, 'Geçersiz randevu zamanı.');
 
-    // Hizmet fiyatını çek
-    $stmt = $pdo->prepare('SELECT price FROM services WHERE id = ? AND shop_id = ?');
+    $price = 0.0;
+    $duration = 0;
+    $notesArr = [];
+
+    // Hizmet bilgisi (Ana)
+    $stmt = $pdo->prepare('SELECT service_name, price, duration_minutes FROM services WHERE id = ? AND shop_id = ?');
     $stmt->execute([$serviceId, $shopId]);
-    $svc = $stmt->fetch();
-    if (!$svc) respond(false, 'Hizmet bulunamadı.');
+    $mainSvc = $stmt->fetch();
+    if (!$mainSvc) respond(false, 'Hizmet bulunamadı.');
+
+    $price += (float)$mainSvc['price'];
+    $duration += (int)$mainSvc['duration_minutes'];
+
+    // Ekstra Hizmetler
+    $extraIds = json_decode($_POST['extra_services'] ?? '[]', true);
+    $extraIdsList = is_array($extraIds) ? array_map('intval', $extraIds) : [];
+    
+    if (!empty($extraIdsList)) {
+        $inQuery = implode(',', array_fill(0, count($extraIdsList), '?'));
+        $stmt = $pdo->prepare("SELECT service_name, price, duration_minutes FROM services WHERE shop_id = ? AND id IN ($inQuery)");
+        $params = array_merge([$shopId], $extraIdsList);
+        $stmt->execute($params);
+        foreach ($stmt->fetchAll() as $row) {
+            $price += (float)$row['price'];
+            $duration += (int)$row['duration_minutes'];
+            $notesArr[] = '+ ' . $row['service_name'];
+        }
+    }
+
+    $notes = empty($notesArr) ? null : implode("\n", $notesArr);
 
     // Çalışan bu dükkanla ilişkili mi?
     $stmt = $pdo->prepare("
@@ -148,34 +187,41 @@ function bookAppointment(PDO $pdo, int $userId): void {
     $stmt->execute([$shopId, $employeeId, $shopId, $employeeId]);
     if (!$stmt->fetch()) respond(false, 'Çalışan bu dükkana ait değil.');
 
-    // Çakışma kontrolü (son kontrol)
-    $duration = (int)$pdo->prepare('SELECT duration_minutes FROM services WHERE id = ?')
-        ->execute([$serviceId]) ? 30 : 30;
-
-    $stmt2 = $pdo->prepare('SELECT duration_minutes FROM services WHERE id = ?');
-    $stmt2->execute([$serviceId]);
-    $duration = (int)$stmt2->fetchColumn();
-
+    // Çakışma kontrolü + kayıt — transaction ile race condition koruması
     $slotEnd = date('Y-m-d H:i:s', $ts + $duration * 60);
 
-    $stmt = $pdo->prepare("
-        SELECT a.id FROM appointments a
-        JOIN services sv ON a.service_id = sv.id
-        WHERE a.employee_id = ? AND a.status != 'iptal'
-          AND a.appointment_time < ?
-          AND DATE_ADD(a.appointment_time, INTERVAL sv.duration_minutes MINUTE) > ?
-    ");
-    $stmt->execute([$employeeId, $slotEnd, $datetime]);
-    if ($stmt->fetch()) respond(false, 'Bu saat dolu, lütfen başka bir saat seçin.');
+    try {
+        $pdo->beginTransaction();
 
-    // Randevuyu kaydet
-    $stmt = $pdo->prepare("
-        INSERT INTO appointments (customer_id, shop_id, employee_id, service_id, appointment_time, price_at_that_time)
-        VALUES (?,?,?,?,?,?)
-    ");
-    $stmt->execute([$userId, $shopId, $employeeId, $serviceId, $datetime, $svc['price']]);
+        // Kilitle: aynı çalışanın çakışan randevularını FOR UPDATE ile kilitle
+        $stmt = $pdo->prepare("
+            SELECT a.id FROM appointments a
+            WHERE a.employee_id = ? AND a.status != 'iptal'
+              AND a.appointment_time < ?
+              AND DATE_ADD(a.appointment_time, INTERVAL a.total_duration MINUTE) > ?
+            FOR UPDATE
+        ");
+        $stmt->execute([$employeeId, $slotEnd, $datetime]);
+        if ($stmt->fetch()) {
+            $pdo->rollBack();
+            respond(false, 'Bu saat dolu veya seçilen işlemler toplam süreye sığmıyor. Lütfen başka bir saat seçin.');
+        }
 
-    respond(true, 'Randevunuz başarıyla alındı!', ['id' => (int)$pdo->lastInsertId()]);
+        // Randevuyu kaydet
+        $stmt = $pdo->prepare("
+            INSERT INTO appointments (customer_id, shop_id, employee_id, service_id, appointment_time, price_at_that_time, total_duration, notes)
+            VALUES (?,?,?,?,?,?,?,?)
+        ");
+        $stmt->execute([$userId, $shopId, $employeeId, $serviceId, $datetime, $price, $duration, $notes]);
+        $newId = (int)$pdo->lastInsertId();
+
+        $pdo->commit();
+    } catch (\Exception $e) {
+        $pdo->rollBack();
+        respond(false, 'Randevu kaydedilemedi, lütfen tekrar deneyin.');
+    }
+
+    respond(true, 'Randevunuz başarıyla alındı!', ['id' => $newId]);
 }
 
 function cancelAppointment(PDO $pdo, int $userId): void {

@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS services (
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS appointments (
     id                INT            AUTO_INCREMENT PRIMARY KEY,
-    customer_id       INT            NOT NULL,
+    customer_id       INT            NULL,       -- NULL for walk-in (yüz yüze) customers
+    walkin_name       VARCHAR(200)   NULL,       -- Walk-in müşteri adı (customer_id NULL ise)
     shop_id           INT            NOT NULL,
     employee_id       INT            NOT NULL,
     service_id        INT            NOT NULL,
@@ -88,8 +89,16 @@ CREATE TABLE IF NOT EXISTS appointments (
     status            ENUM('bekliyor','tamamlandi','iptal') DEFAULT 'bekliyor',
     reminder_sent     BOOLEAN        DEFAULT FALSE,
     price_at_that_time DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    total_duration    INT            NOT NULL DEFAULT 30,
+    notes             TEXT           NULL,
     FOREIGN KEY (customer_id) REFERENCES users(id)     ON DELETE CASCADE,
     FOREIGN KEY (shop_id)     REFERENCES shops(id)     ON DELETE CASCADE,
     FOREIGN KEY (employee_id) REFERENCES users(id)     ON DELETE CASCADE,
     FOREIGN KEY (service_id)  REFERENCES services(id)  ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ------------------------------------------------------------
+-- ALTER TABLE (mevcut veritabanı için — fresh kurulumda gerekli değil)
+-- ------------------------------------------------------------
+-- ALTER TABLE appointments MODIFY COLUMN customer_id INT NULL;
+-- ALTER TABLE appointments ADD COLUMN walkin_name VARCHAR(200) NULL AFTER customer_id;

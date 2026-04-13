@@ -1,8 +1,4 @@
 <?php
-// ============================================================
-//  Randevularım — Müşteri'nin Randevuları
-// ============================================================
-
 $filter = in_array($_GET['filter'] ?? '', ['bekliyor','tamamlandi','iptal']) ? $_GET['filter'] : 'all';
 
 $sql = "
@@ -40,85 +36,118 @@ foreach ($stmt->fetchAll() as $row) {
 }
 ?>
 
-<div class="page-header">
-    <div>
-        <h2 class="page-title">Randevularım</h2>
-        <p class="page-sub">Tüm randevularınızı görüntüleyin ve yönetin.</p>
+<div class="max-w-screen-xl mx-auto px-6 py-12">
+    <header class="mb-12 text-center md:text-left">
+        <h1 class="text-6xl font-headline font-extrabold text-black tracking-tighter mb-4 italic">Ajandam</h1>
+        <p class="text-lg text-on-surface-variant max-w-md font-medium uppercase tracking-tight">Kişisel bakım takviminiz ve geçmiş işlemleriniz.</p>
+    </header>
+    
+    <!-- Filtre Tabları -->
+    <div class="flex flex-wrap gap-4 mb-12">
+        <?php foreach ([
+            'all'        => ['TÜMÜ', ''],
+            'bekliyor'   => ['BEKLEYEN', 'text-secondary border-secondary bg-secondary-container/20'],
+            'tamamlandi' => ['TAMAMLANAN', 'text-black border-black bg-surface-container-highest'],
+            'iptal'      => ['İPTAL', 'text-error border-error bg-error-container/20'],
+        ] as $key => [$label, $colorClasses]): 
+            $isActive = $filter === $key;
+        ?>
+        <a href="?page=randevularim&filter=<?= $key ?>"
+           class="flex items-center gap-2 border-2 <?= $isActive ? 'border-black bg-black text-white' : 'border-black bg-surface' ?> px-5 py-2 font-headline font-bold text-sm tracking-widest hover:-translate-y-1 transition-transform">
+            <?= $label ?>
+            <span class="bg-white text-black px-2 py-0.5 rounded-full text-xs <?= $isActive ? 'opacity-100' : 'opacity-80' ?> border border-black"><?= $counts[$key] ?></span>
+        </a>
+        <?php endforeach; ?>
     </div>
-    <a href="musteri_paneli.php?page=kesfet" class="btn btn-primary">+ Yeni Randevu</a>
-</div>
 
-<!-- Filtre Tabları -->
-<div class="filter-tabs">
-    <?php foreach ([
-        'all'        => ['Tümü', ''],
-        'bekliyor'   => ['Bekleyen', 'gold'],
-        'tamamlandi' => ['Tamamlanan', 'green'],
-        'iptal'      => ['İptal', 'red'],
-    ] as $key => [$label, $color]): ?>
-    <a href="musteri_paneli.php?page=randevularim&filter=<?= $key ?>"
-       class="filter-tab <?= $filter === $key ? 'active' : '' ?> <?= $color ?>">
-        <?= $label ?> <span class="filter-count"><?= $counts[$key] ?></span>
-    </a>
-    <?php endforeach; ?>
-</div>
-
-<!-- Liste -->
-<?php if (empty($appointments)): ?>
-<div class="empty-state" style="margin-top:32px">
-    <div class="empty-icon">📅</div>
-    <h2>Bu kategoride randevu yok</h2>
-    <p>Yeni bir randevu almak için berberleri keşfedin.</p>
-    <a href="musteri_paneli.php?page=kesfet" class="btn btn-primary">Berber Keşfet</a>
-</div>
-<?php else: ?>
-
-<div class="randevu-list">
-    <?php foreach ($appointments as $a):
-        $isPast    = strtotime($a['appointment_time']) < time();
-        $isBekliyor = $a['status'] === 'bekliyor';
-    ?>
-    <div class="randevu-card <?= $a['status'] ?>" id="rcard-<?= $a['id'] ?>">
-
-        <div class="randevu-card-left">
-            <div class="randevu-date-box">
-                <div class="rdate-day"><?= date('d', strtotime($a['appointment_time'])) ?></div>
-                <div class="rdate-month"><?= date('M', strtotime($a['appointment_time'])) ?></div>
-            </div>
-            <div class="randevu-time">
-                🕐 <?= date('H:i', strtotime($a['appointment_time'])) ?>
-            </div>
-        </div>
-
-        <div class="randevu-card-body">
-            <div class="randevu-shop-name"><?= htmlspecialchars($a['shop_name']) ?></div>
-            <div class="randevu-meta">
-                <span>✂️ <?= htmlspecialchars($a['service_name']) ?></span>
-                <span>👤 <?= htmlspecialchars($a['employee_name']) ?></span>
-                <?php if ($a['district_name']): ?>
-                <span>📍 <?= htmlspecialchars($a['district_name']) ?></span>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <div class="randevu-card-right">
-            <div class="randevu-price">₺<?= number_format($a['price_at_that_time'], 2) ?></div>
-            <span class="badge badge-<?= $a['status'] ?>" id="rbadge-<?= $a['id'] ?>">
-                <?= ['bekliyor'=>'Bekliyor','tamamlandi'=>'Tamamlandı','iptal'=>'İptal'][$a['status']] ?>
-            </span>
-            <?php if ($isBekliyor && !$isPast): ?>
-            <button class="btn btn-danger btn-sm" style="margin-top:8px"
-                onclick="cancelAppointment(<?= $a['id'] ?>)">
-                İptal Et
-            </button>
-            <?php endif; ?>
-        </div>
-
+    <!-- Liste -->
+    <?php if (empty($appointments)): ?>
+    <div class="bg-surface-container-lowest sketchy-border p-12 flex flex-col items-center justify-center text-center rotate-1">
+        <span class="material-symbols-outlined text-6xl mb-4 text-on-surface-variant opacity-50">calendar_month</span>
+        <h2 class="font-headline font-black text-2xl mb-2">Bu kriterde randevu yok</h2>
+        <p class="font-body text-on-surface-variant font-medium mb-6">Yeni bir randevu almak için ustanızı hemen seçin.</p>
+        <a href="?page=kesfet" class="bg-black text-white px-8 py-3 rounded-xl border-2 border-black font-bold font-headline uppercase hover:-translate-y-1 transition-transform">
+            BERBER KEŞFET
+        </a>
     </div>
-    <?php endforeach; ?>
+    <?php else: ?>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <?php foreach ($appointments as $a):
+            $isPast    = strtotime($a['appointment_time']) < time();
+            $isBekliyor = $a['status'] === 'bekliyor';
+            
+            $bgClass = '';
+            $statusBadge = '';
+            $statusLabel = '';
+            
+            switch($a['status']) {
+                case 'bekliyor':
+                    $bgClass = 'bg-surface-container-lowest';
+                    $statusLabel = 'BEKLEYEN';
+                    $statusBadge = 'bg-[#fefee5] border-secondary text-secondary';
+                    break;
+                case 'tamamlandi':
+                    $bgClass = 'bg-surface-container-low opacity-80';
+                    $statusLabel = 'TAMAMLANDI';
+                    $statusBadge = 'bg-[#e7edb4] border-black text-black';
+                    break;
+                case 'iptal':
+                    $bgClass = 'bg-surface-container-high opacity-60';
+                    $statusLabel = 'İPTAL';
+                    $statusBadge = 'bg-[#fe8b70] border-[#a54731] text-[#742410]';
+                    break;
+            }
+        ?>
+        <div class="sketchy-card <?= $bgClass ?> p-8 flex flex-col gap-6 hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] transition-all group" id="rcard-<?= $a['id'] ?>">
+            
+            <div class="flex justify-between items-start">
+                <div class="flex gap-4 items-center">
+                    <div class="w-16 h-16 rounded-full border-2 border-black flex items-center justify-center bg-white shrink-0 overflow-hidden text-2xl font-black">
+                        <?= mb_strtoupper(mb_substr($a['employee_name'], 0, 1)) ?>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-black font-headline text-black italic line-clamp-1"><?= htmlspecialchars($a['shop_name']) ?></h3>
+                        <p class="text-on-surface-variant font-medium text-sm line-clamp-1">👤 <?= htmlspecialchars($a['employee_name']) ?></p>
+                        <p class="text-on-surface-variant font-bold text-sm mt-1">✂️ <?= htmlspecialchars($a['service_name']) ?></p>
+                    </div>
+                </div>
+                <span id="badgeStatus-<?= $a['id'] ?>" class="px-3 py-1 rounded-md border-2 text-xs font-bold uppercase tracking-tighter whitespace-nowrap <?= $statusBadge ?>"><?= $statusLabel ?></span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white p-4 border-2 border-black border-dashed">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="material-symbols-outlined text-xs">calendar_today</span>
+                        <span class="text-[10px] uppercase font-bold text-on-surface-variant tracking-widest">Tarih</span>
+                    </div>
+                    <p class="font-black text-lg"><?= date('d M Y', strtotime($a['appointment_time'])) ?></p>
+                </div>
+                <div class="bg-white p-4 border-2 border-black border-dashed">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="material-symbols-outlined text-xs">schedule</span>
+                        <span class="text-[10px] uppercase font-bold text-on-surface-variant tracking-widest">Saat</span>
+                    </div>
+                    <p class="font-black text-lg"><?= date('H:i', strtotime($a['appointment_time'])) ?></p>
+                </div>
+            </div>
+            
+            <div class="flex items-center justify-between border-t border-black/10 pt-4 mt-auto">
+                <div class="font-headline font-black text-xl">₺<?= number_format($a['price_at_that_time'], 2) ?></div>
+                <div class="flex gap-2">
+                    <?php if ($isBekliyor && !$isPast): ?>
+                    <button class="bg-[#fe8b70] text-[#742410] border-2 border-[#a54731] px-4 py-2 font-bold uppercase text-xs hover:bg-[#a54731] hover:text-white transition-colors rc-cancel-btn" onclick="cancelAppointment(<?= $a['id'] ?>)">
+                        İptal
+                    </button>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    
+    <?php endif; ?>
 </div>
-
-<?php endif; ?>
 
 <script>
 async function cancelAppointment(id) {
@@ -133,13 +162,18 @@ async function cancelAppointment(id) {
     showToast(data.success ? 'success' : 'error', data.message);
 
     if (data.success) {
-        const badge = document.getElementById('rbadge-' + id);
-        badge.className = 'badge badge-iptal';
-        badge.textContent = 'İptal';
-        document.getElementById('rcard-' + id).classList.replace('bekliyor', 'iptal');
-        // İptal butonunu kaldır
-        const btn = document.querySelector(`#rcard-${id} .btn-danger`);
-        btn?.remove();
+        const card = document.getElementById('rcard-' + id);
+        const badge = document.getElementById('badgeStatus-' + id);
+        const cancelBtn = card.querySelector('.rc-cancel-btn');
+        
+        // Update styling
+        card.classList.remove('bg-surface-container-lowest');
+        card.classList.add('bg-surface-container-high', 'opacity-60');
+        
+        badge.className = 'px-3 py-1 rounded-md border-2 text-xs font-bold uppercase tracking-tighter whitespace-nowrap bg-[#fe8b70] border-[#a54731] text-[#742410]';
+        badge.textContent = 'İPTAL';
+        
+        if(cancelBtn) cancelBtn.remove();
     }
 }
 </script>
