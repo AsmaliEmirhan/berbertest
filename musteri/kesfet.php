@@ -191,12 +191,6 @@ $shops = $stmt->fetchAll();
                     <span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">bolt</span> Sistemde <?= count($shops) ?> dükkan aktif.
                 </div>
             </div>
-            
-            <div class="border-4 border-black border-dashed p-8 text-center -rotate-2 bg-surface">
-                <span class="material-symbols-outlined text-5xl mb-4 text-secondary" style="font-variation-settings: 'FILL' 1;">star</span>
-                <h4 class="font-headline font-black text-2xl">PUAN SİSTEMİ</h4>
-                <p class="text-sm font-medium mt-2 text-on-surface-variant">Çok yakında her tıraştan puan kazanıp, ücretsiz hizmet alabileceksiniz!</p>
-            </div>
         </div>
     </div>
 </div>
