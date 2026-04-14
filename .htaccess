@@ -1,0 +1,12 @@
+# XAMPP ve sunucu üzerinde karakter kodlamasını zorunlu UTF-8 yapar
+AddDefaultCharset UTF-8
+
+<IfModule mod_php.c>
+    php_value default_charset "UTF-8"
+</IfModule>
+<IfModule mod_php7.c>
+    php_value default_charset "UTF-8"
+</IfModule>
+<IfModule mod_php8.c>
+    php_value default_charset "UTF-8"
+</IfModule>

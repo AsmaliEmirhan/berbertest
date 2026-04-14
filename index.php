@@ -8,9 +8,9 @@ if (!empty($_SESSION['role'])) {
 }
 
 try {
-    $districts = getPDO()->query('SELECT id, name FROM districts ORDER BY name')->fetchAll();
+    $cities = getPDO()->query('SELECT id, name FROM cities ORDER BY name')->fetchAll();
 } catch (Exception) {
-    $districts = [];
+    $cities = [];
 }
 
 $view = $_GET['view'] ?? 'landing';
@@ -65,7 +65,9 @@ $role = $_GET['role'] ?? 'musteri';
 <!-- ================== LANDING VIEW ================== -->
 <header class="bg-[#fefee5] border-b-2 border-black w-full px-6 py-4 z-40 relative">
     <div class="flex justify-between items-center w-full max-w-screen-2xl mx-auto font-['Plus_Jakarta_Sans'] tracking-tight">
-        <div class="text-2xl font-bold italic text-black underline decoration-wavy">Berber Randevu</div>
+        <a href="?view=landing" class="block flex-shrink-0">
+            <img src="assets/img/logo.png" alt="Berber Randevu Logo" class="h-16 md:h-20 w-auto object-contain">
+        </a>
         <nav class="hidden md:flex gap-8 items-center">
             <a class="text-stone-600 font-medium hover:text-black hover:-translate-y-0.5 transition-transform" href="#">Berberler</a>
             <a class="text-stone-600 font-medium hover:text-black hover:-translate-y-0.5 transition-transform" href="#">Hizmetler</a>
@@ -113,8 +115,10 @@ $role = $_GET['role'] ?? 'musteri';
 <main class="flex-grow flex flex-col items-center justify-center px-6 relative z-10 w-full h-full">
     <div class="absolute top-20 left-10 md:left-24 opacity-20 -rotate-12 select-none pointer-events-none"><span class="material-symbols-outlined text-[120px]" data-icon="content_cut">content_cut</span></div>
     
-    <header class="mb-12 text-center mt-12 md:mt-0">
-        <h1 class="text-4xl md:text-5xl font-headline font-bold italic underline decoration-wavy tracking-tight mb-2">Berber Randevu</h1>
+    <header class="mb-12 text-center mt-12 md:mt-0 flex flex-col items-center">
+        <a href="?view=landing" class="inline-block mb-4">
+            <img src="assets/img/logo.png" alt="Berber Randevu Logo" class="h-24 md:h-32 w-auto object-contain">
+        </a>
         <p class="font-label text-sm uppercase tracking-widest text-primary">Dijital Defter Girişi</p>
     </header>
     
@@ -221,14 +225,22 @@ $role = $_GET['role'] ?? 'musteri';
                     <input name="password" class="sketch-input-ye-ol py-2 text-lg" placeholder="••••••••" type="password" required/>
                 </div>
                 
-                <div class="space-y-1" id="districtWrapper" style="<?= $role === 'berber' ? 'display:none;' : '' ?>">
-                    <label class="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant">İlçe</label>
-                    <select name="district_id" class="sketch-input-ye-ol py-2 text-lg appearance-none bg-transparent">
-                        <option value="">Seçiniz (Opsiyonel)</option>
-                        <?php foreach ($districts as $d): ?>
-                            <option value="<?= htmlspecialchars($d['id']) ?>"><?= htmlspecialchars($d['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                <div class="flex gap-4" id="locationWrapper" style="<?= $role === 'berber' ? 'display:none;' : '' ?>">
+                    <div class="space-y-1 flex-1">
+                        <label class="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant">İl</label>
+                        <select name="city_id" id="citySelect" class="sketch-input-ye-ol py-2 text-lg appearance-none bg-transparent w-full">
+                            <option value="">Seçiniz (Opsiyonel)</option>
+                            <?php foreach ($cities as $c): ?>
+                                <option value="<?= htmlspecialchars($c['id']) ?>"><?= htmlspecialchars($c['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="space-y-1 flex-1" id="districtWrapper">
+                        <label class="font-label text-xs font-bold uppercase tracking-widest text-on-surface-variant">İlçe</label>
+                        <select name="district_id" id="districtSelect" class="sketch-input-ye-ol py-2 text-lg appearance-none bg-transparent w-full" disabled>
+                            <option value="">Önce İl Seçin</option>
+                        </select>
+                    </div>
                 </div>
                 
                 <div class="pt-4">
@@ -263,7 +275,9 @@ $role = $_GET['role'] ?? 'musteri';
 document.addEventListener('DOMContentLoaded', function() {
     const roleBtns = document.querySelectorAll('.role-btn');
     const roleInput = document.getElementById('roleInput');
-    const districtWrapper = document.getElementById('districtWrapper');
+    const locationWrapper = document.getElementById('locationWrapper');
+    const citySelect = document.getElementById('citySelect');
+    const districtSelect = document.getElementById('districtSelect');
     const regTitleWord = document.getElementById('regTitleWord');
     const switchToReg = document.getElementById('switchToReg');
     
@@ -281,14 +295,14 @@ document.addEventListener('DOMContentLoaded', function() {
             this.classList.remove('opacity-60');
             
             // Register ui changes
-            if(districtWrapper) {
+            if(locationWrapper) {
                 this.classList.add('bg-black', 'text-white');
                 this.classList.remove('text-black');
                 if (role === 'berber') {
-                    districtWrapper.style.display = 'none';
+                    locationWrapper.style.display = 'none';
                     if(regTitleWord) regTitleWord.textContent = 'Dükkan Aç';
                 } else {
-                    districtWrapper.style.display = 'block';
+                    locationWrapper.style.display = 'flex';
                     if(regTitleWord) regTitleWord.textContent = 'Kaydolun.';
                 }
             } else {
@@ -298,6 +312,32 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    if (citySelect && districtSelect) {
+        citySelect.addEventListener('change', async function() {
+            districtSelect.innerHTML = '<option value="">Yükleniyor...</option>';
+            districtSelect.disabled = true;
+            if (!this.value) {
+                districtSelect.innerHTML = '<option value="">Önce İl Seçin</option>';
+                return;
+            }
+            try {
+                const res = await fetch(`public_api.php?action=get_districts&city_id=${this.value}`);
+                const data = await res.json();
+                if (data.success) {
+                    districtSelect.innerHTML = '<option value="">İlçe Seçiniz</option>';
+                    data.data.forEach(d => {
+                        districtSelect.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+                    });
+                    districtSelect.disabled = false;
+                } else {
+                    districtSelect.innerHTML = '<option value="">Hata Oluştu</option>';
+                }
+            } catch (err) {
+                districtSelect.innerHTML = '<option value="">Hata Oluştu</option>';
+            }
+        });
+    }
 
     const form = document.getElementById('authForm');
     const alertBox = document.getElementById('alertBox');

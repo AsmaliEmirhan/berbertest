@@ -1,8 +1,16 @@
 <?php
-$districts = $pdo->query('SELECT id, name FROM districts ORDER BY name')->fetchAll();
+$cities = $pdo->query('SELECT id, name FROM cities ORDER BY name')->fetchAll();
 
+$filterCity     = !empty($_GET['city'])     ? (int)$_GET['city']     : (int)($user['city_id'] ?? 0);
 $filterDistrict = !empty($_GET['district']) ? (int)$_GET['district'] : (int)($user['district_id'] ?? 0);
 $search         = trim($_GET['q'] ?? '');
+
+$districts = [];
+if ($filterCity) {
+    $stmt = $pdo->prepare('SELECT id, name FROM districts WHERE city_id = ? ORDER BY name');
+    $stmt->execute([$filterCity]);
+    $districts = $stmt->fetchAll();
+}
 
 $sql    = "
     SELECT s.*,
@@ -19,6 +27,10 @@ $sql    = "
 ";
 $params = [];
 
+if ($filterCity) {
+    $sql .= ' AND s.city_id = ?';
+    $params[] = $filterCity;
+}
 if ($filterDistrict) {
     $sql .= ' AND s.district_id = ?';
     $params[] = $filterDistrict;
@@ -58,8 +70,17 @@ $shops = $stmt->fetchAll();
                 <span class="material-symbols-outlined absolute right-4 top-3 text-black">search</span>
             </div>
             
-            <select name="district" class="bg-surface-container-lowest border-2 border-black rounded-xl px-4 py-3 font-headline font-bold focus:outline-none focus:border-secondary transition-colors appearance-none pr-8">
-                <option value="">TÜM İLÇELER</option>
+            <select name="city" id="kesfetCitySelect" class="bg-surface-container-lowest border-2 border-black rounded-xl px-4 py-3 font-headline font-bold focus:outline-none focus:border-secondary transition-colors appearance-none pr-8">
+                <option value="">TÜM İLLER</option>
+                <?php foreach ($cities as $c): ?>
+                <option value="<?= $c['id'] ?>" <?= $filterCity == $c['id'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars(mb_strtoupper($c['name'])) ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+            
+            <select name="district" id="kesfetDistrictSelect" class="bg-surface-container-lowest border-2 border-black rounded-xl px-4 py-3 font-headline font-bold focus:outline-none focus:border-secondary transition-colors appearance-none pr-8">
+                <option value=""><?= empty($districts) ? 'Önce İl Seçin' : 'TÜM İLÇELER' ?></option>
                 <?php foreach ($districts as $d): ?>
                 <option value="<?= $d['id'] ?>" <?= $filterDistrict == $d['id'] ? 'selected' : '' ?>>
                     <?= htmlspecialchars(mb_strtoupper($d['name'])) ?>
@@ -71,7 +92,7 @@ $shops = $stmt->fetchAll();
                 Filtrele
             </button>
             
-            <?php if ($filterDistrict || $search): ?>
+            <?php if ($filterCity || $filterDistrict || $search): ?>
             <a href="?page=kesfet" class="text-sm font-bold underline px-4 hover:text-secondary">TEMİZLE</a>
             <?php endif; ?>
         </form>
@@ -153,3 +174,37 @@ $shops = $stmt->fetchAll();
         </div>
     </div>
 </div>
+
+<script>
+const kesfetCitySelect = document.getElementById('kesfetCitySelect');
+const kesfetDistrictSelect = document.getElementById('kesfetDistrictSelect');
+
+if (kesfetCitySelect && kesfetDistrictSelect) {
+    kesfetCitySelect.addEventListener('change', async function() {
+        kesfetDistrictSelect.innerHTML = '<option value="">Yükleniyor...</option>';
+        kesfetDistrictSelect.disabled = true;
+        if (!this.value) {
+            kesfetDistrictSelect.innerHTML = '<option value="">Önce İl Seçin</option>';
+            return;
+        }
+        try {
+            const res = await fetch(`public_api.php?action=get_districts&city_id=${this.value}`);
+            const data = await res.json();
+            if (data.success) {
+                kesfetDistrictSelect.innerHTML = '<option value="">TÜM İLÇELER</option>';
+                data.data.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.id;
+                    opt.textContent = d.name.toUpperCase();
+                    kesfetDistrictSelect.appendChild(opt);
+                });
+                kesfetDistrictSelect.disabled = false;
+            } else {
+                kesfetDistrictSelect.innerHTML = '<option value="">Hata Oluştu</option>';
+            }
+        } catch (err) {
+            kesfetDistrictSelect.innerHTML = '<option value="">Hata Oluştu</option>';
+        }
+    });
+}
+</script>

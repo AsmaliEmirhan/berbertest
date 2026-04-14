@@ -1,6 +1,8 @@
 <?php
-if (!$user['is_plus']):
+if ($userRoleInShop === 'Çalışan'):
 ?>
+<div class="max-w-screen-xl mx-auto px-6 py-20 text-center"><div class="bg-error-container text-on-error-container p-12 border-4 border-error inline-block rounded-xl sketch-shadow -rotate-1"><span class="material-symbols-outlined text-6xl mb-4">block</span><h1 class="text-3xl font-headline font-black uppercase tracking-widest">Yetki Sınırı</h1><p class="mt-2 font-medium">Bu sayfaya giriş yetkiniz bulunmuyor. Yalnızca Patron yetkisine sahipseniz çalışanları yönetebilirsiniz.</p></div></div>
+<?php elseif (!$user['is_plus']): ?>
 <div class="max-w-screen-xl mx-auto px-6 py-20 text-center">
     <div class="bg-[#fefee5] border-4 border-black sketch-shadow p-12 inline-block -rotate-1 rounded-2xl">
         <span class="material-symbols-outlined text-8xl text-[#eab308] mb-4" style="font-variation-settings: 'FILL' 1;">stars</span>

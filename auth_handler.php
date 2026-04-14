@@ -35,6 +35,7 @@ function handleRegister(): void {
     $email     = filter_var(strtolower(trim($_POST['email'] ?? '')), FILTER_VALIDATE_EMAIL);
     $password  = $_POST['password'] ?? '';
     $districtId = !empty($_POST['district_id']) ? (int)$_POST['district_id'] : null;
+    $cityId     = !empty($_POST['city_id'])     ? (int)$_POST['city_id']     : null;
 
     // Doğrulama
     if (!$role)                    respond(false, 'Geçersiz kullanıcı tipi.');
@@ -53,10 +54,10 @@ function handleRegister(): void {
     $passwordHash = password_hash($password, PASSWORD_BCRYPT);
 
     $stmt = $pdo->prepare(
-        'INSERT INTO users (full_name, email, password, role, district_id)
-         VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO users (full_name, email, password, role, city_id, district_id)
+         VALUES (?, ?, ?, ?, ?, ?)'
     );
-    $stmt->execute([$fullName, $email, $passwordHash, $role, $districtId]);
+    $stmt->execute([$fullName, $email, $passwordHash, $role, $cityId, $districtId]);
     $userId = (int)$pdo->lastInsertId();
 
     // Oturum başlat

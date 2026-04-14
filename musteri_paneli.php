@@ -70,7 +70,9 @@ $activeNav = ($page === 'berber_detay') ? 'kesfet' : $page;
 <header class="bg-[#fefee5] w-full border-b-2 border-black sticky top-0 z-50">
     <nav class="flex justify-between items-center w-full px-6 py-4 max-w-screen-2xl mx-auto font-['Plus_Jakarta_Sans'] tracking-tight">
         <div class="flex items-center gap-8">
-            <a href="musteri_paneli.php" class="text-2xl font-bold italic text-black underline decoration-wavy">Berber Randevu</a>
+            <a href="index.php" class="block flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer">
+                <img src="assets/img/logo.png" alt="Berber Randevu Logo" class="h-12 md:h-16 w-auto object-contain">
+            </a>
             <div class="hidden md:flex gap-6 items-center">
                 <a href="?page=kesfet" class="text-black font-black pb-1 hover:-translate-y-0.5 hover:rotate-1 transition-transform border-b-4 <?= $activeNav==='kesfet' ? 'border-black' : 'border-transparent text-stone-600' ?>">Berberler / Keşfet</a>
                 <a href="?page=randevularim" class="text-black font-black pb-1 hover:-translate-y-0.5 hover:rotate-1 transition-transform border-b-4 <?= $activeNav==='randevularim' ? 'border-black' : 'border-transparent text-stone-600' ?>">Randevularım</a>

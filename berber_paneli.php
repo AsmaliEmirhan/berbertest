@@ -16,10 +16,52 @@ $user = $stmt->fetch();
 
 $stmt = $pdo->prepare('SELECT s.*, d.name as district_name FROM shops s LEFT JOIN districts d ON s.district_id = d.id WHERE s.owner_id = ?');
 $stmt->execute([$_SESSION['user_id']]);
-$shop = $stmt->fetch();
+$ownedShops = $stmt->fetchAll();
 
-$allowedPages = ['dashboard', 'dukkan', 'hizmetler', 'calisanlar', 'randevular', 'analiz', 'plus'];
+$stmt = $pdo->prepare('
+    SELECT s.*, d.name as district_name 
+    FROM shop_employees se 
+    JOIN shops s ON se.shop_id = s.id 
+    LEFT JOIN districts d ON s.district_id = d.id 
+    WHERE se.employee_id = ?
+');
+$stmt->execute([$_SESSION['user_id']]);
+$employedShops = $stmt->fetchAll();
+
+$allShops = [];
+foreach ($ownedShops as $s) {
+    $s['_role'] = 'Patron';
+    $allShops[$s['id']] = $s;
+}
+foreach ($employedShops as $s) {
+    if (!isset($allShops[$s['id']])) {
+        $s['_role'] = 'Çalışan';
+        $allShops[$s['id']] = $s;
+    }
+}
+
+$shop = null;
+$userRoleInShop = null;
+if (!empty($allShops)) {
+    $activeShopId = $_SESSION['active_shop_id'] ?? array_key_first($allShops);
+    if (!isset($allShops[$activeShopId])) {
+        $activeShopId = array_key_first($allShops);
+    }
+    $_SESSION['active_shop_id'] = $activeShopId;
+    $shop = $allShops[$activeShopId] ?? null;
+    $userRoleInShop = $shop ? $shop['_role'] : null;
+}
+
+$allowedPages = ['dashboard', 'dukkan', 'hizmetler', 'calisanlar', 'randevular', 'analiz', 'istatistik', 'plus'];
 $page = in_array($_GET['page'] ?? '', $allowedPages) ? $_GET['page'] : 'dashboard';
+
+// Enforce Employee Restrictions
+if ($userRoleInShop === 'Çalışan') {
+    $restricted = ['istatistik', 'dukkan', 'calisanlar'];
+    if (in_array($page, $restricted)) {
+        $page = 'dashboard';
+    }
+}
 
 $pendingBadge = 0;
 if ($shop) {
@@ -78,20 +120,26 @@ if ($shop) {
 <!-- TopNavBar -->
 <nav class="bg-[#fefee5] w-full border-b-2 border-black sticky top-0 z-50">
     <div class="flex justify-between items-center w-full px-6 py-4 max-w-screen-2xl mx-auto font-['Plus_Jakarta_Sans'] tracking-tight">
-        <div class="text-2xl font-bold italic text-black underline decoration-wavy">Berber Randevu</div>
+        <a href="index.php" class="block flex-shrink-0 hover:opacity-80 transition-opacity cursor-pointer">
+            <img src="assets/img/logo.png" alt="Berber Randevu Logo" class="h-12 md:h-16 w-auto object-contain">
+        </a>
         
         <!-- Navbar Butonları -->
         <div class="hidden lg:flex items-center space-x-6">
             <a href="?page=dashboard" class="relative text-black font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='dashboard'?'border-black':'border-transparent hover:border-black/50 text-stone-600' ?>">Panel</a>
             
-            <a href="?page=dukkan" class="relative text-black font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='dukkan'?'border-black':'border-transparent hover:border-black/50 text-stone-600' ?>">Dükkan</a>
+            <?php if ($userRoleInShop !== 'Çalışan'): ?>
+                <a href="?page=dukkan" class="relative text-black font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='dukkan'?'border-black':'border-transparent hover:border-black/50 text-stone-600' ?>">Dükkan</a>
+            <?php endif; ?>
 
             <a href="?page=hizmetler" class="relative text-black font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='hizmetler'?'border-black':'border-transparent hover:border-black/50 text-stone-600' ?>">Hizmetler</a>
             
-            <?php if ($user['is_plus']): ?>
-            <a href="?page=calisanlar" class="relative text-black font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='calisanlar'?'border-black':'border-transparent hover:border-black/50 text-stone-600' ?>">Çalışanlar</a>
-            <?php else: ?>
-            <div title="Sadece Plus Üyelerine Özel" class="relative text-stone-400 font-black pb-1 cursor-not-allowed">Çalışanlar ⭐</div>
+            <?php if ($userRoleInShop !== 'Çalışan'): ?>
+                <?php if ($user['is_plus']): ?>
+                <a href="?page=calisanlar" class="relative text-black font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='calisanlar'?'border-black':'border-transparent hover:border-black/50 text-stone-600' ?>">Çalışanlar</a>
+                <?php else: ?>
+                <div title="Sadece Plus Üyelerine Özel" class="relative text-stone-400 font-black pb-1 cursor-not-allowed">Çalışanlar ⭐</div>
+                <?php endif; ?>
             <?php endif; ?>
             
             <a href="?page=randevular" class="relative text-black font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='randevular'?'border-black':'border-transparent hover:border-black/50 text-stone-600' ?>">
@@ -101,16 +149,40 @@ if ($shop) {
                 <?php endif; ?>
             </a>
 
-            <?php if ($user['is_plus']): ?>
-            <a href="?page=analiz" class="relative text-black font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='analiz'?'border-black':'border-transparent hover:border-black/50 text-stone-600' ?>">Yüz Yüze</a>
+            <?php if ($userRoleInShop !== 'Çalışan'): ?>
+                <?php if ($user['is_plus']): ?>
+                <a href="?page=istatistik" class="relative text-black font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='istatistik'?'border-black':'border-transparent hover:border-black/50 text-stone-600' ?>">İstatistikler</a>
+                <?php else: ?>
+                <div title="Sadece Plus Üyelerine Özel" class="relative text-stone-400 font-black pb-1 cursor-not-allowed">İstatistikler ⭐</div>
+                <?php endif; ?>
+
+                <?php if ($user['is_plus']): ?>
+                <a href="?page=analiz" class="relative text-black font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='analiz'?'border-black':'border-transparent hover:border-black/50 text-stone-600' ?>">Yüz Yüze</a>
+                <?php endif; ?>
             <?php endif; ?>
 
+            <?php if ($userRoleInShop !== 'Çalışan'): ?>
             <a href="?page=plus" class="relative font-black pb-1 hover:-translate-y-0.5 transition-transform border-b-4 <?= $page==='plus' ? 'border-secondary text-secondary' : ($user['is_plus'] ? 'border-transparent text-secondary hover:border-secondary/50' : 'border-transparent text-stone-600 hover:border-black/50') ?>">
                 <?= $user['is_plus'] ? '⭐ Plus' : '⭐ Plus\'a Geç' ?>
             </a>
+            <?php endif; ?>
         </div>
         
         <div class="flex items-center gap-4">
+            <?php if (!empty($allShops)): ?>
+                <div class="hidden sm:flex flex-col items-end mr-4 border-r-2 border-black/10 pr-4">
+                    <select class="bg-transparent font-black text-sm uppercase cursor-pointer outline-none hover:text-secondary appearance-none" onchange="switchActiveShop(this.value)">
+                        <?php foreach($allShops as $s): ?>
+                            <option class="text-black bg-[#fefee5]" value="<?= $s['id'] ?>" <?= $shop && $shop['id'] == $s['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars(mb_strtoupper($s['shop_name'])) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span class="text-[10px] font-bold tracking-widest <?= $userRoleInShop === 'Patron' ? 'text-secondary' : 'text-stone-500' ?>">
+                        Ünvan: <?= $userRoleInShop ?>
+                    </span>
+                </div>
+            <?php endif; ?>
             <a href="logout.php" class="bg-black text-white px-6 py-2 hand-drawn-border font-bold hover:-translate-y-0.5 active:scale-95 transition-all text-sm uppercase">Çıkış Yap</a>
         </div>
     </div>
@@ -149,5 +221,14 @@ if ($shop) {
 </div>
 
 <script src="assets/js/panel.js"></script>
+<script>
+async function switchActiveShop(shopId) {
+    const fd = new FormData();
+    fd.set('action', 'switch_shop');
+    fd.set('shop_id', shopId);
+    await fetch('berber/api.php', { method: 'POST', body: fd });
+    location.reload();
+}
+</script>
 </body>
 </html>
