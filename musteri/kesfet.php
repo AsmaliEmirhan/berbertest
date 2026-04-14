@@ -1,8 +1,8 @@
 <?php
 $cities = $pdo->query('SELECT id, name FROM cities ORDER BY name')->fetchAll();
 
-$filterCity     = !empty($_GET['city'])     ? (int)$_GET['city']     : (int)($user['city_id'] ?? 0);
-$filterDistrict = !empty($_GET['district']) ? (int)$_GET['district'] : (int)($user['district_id'] ?? 0);
+$filterCity     = isset($_GET['city'])     ? (int)$_GET['city']     : 0;
+$filterDistrict = isset($_GET['district']) ? (int)$_GET['district'] : 0;
 $search         = trim($_GET['q'] ?? '');
 
 $districts = [];
